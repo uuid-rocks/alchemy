@@ -6,4 +6,5 @@ export {
   fromApiKey,
   fromAuthProvider,
 } from "./Credentials.ts";
+export * from "./Project.ts";
 export * from "./Providers.ts";
