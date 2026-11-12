@@ -28,6 +28,7 @@ const packages = [
   "daytona",
   "archil",
   "boat",
+  "braintrust",
   "modal",
   "planetscale",
   "neon",

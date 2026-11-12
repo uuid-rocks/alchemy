@@ -89,6 +89,11 @@ const sourceRoots: SourceRoot[] = [
     sourceDisplayPrefix: "packages/boat/src",
   },
   {
+    srcRoot: "packages/braintrust/src",
+    providerPrefix: "Braintrust",
+    sourceDisplayPrefix: "packages/braintrust/src",
+  },
+  {
     srcRoot: "packages/turso/src",
     providerPrefix: "Turso",
     sourceDisplayPrefix: "packages/turso/src",

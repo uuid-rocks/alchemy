@@ -45,6 +45,7 @@ export INFISICAL_TOKEN=alchemy-fake-local-infisical-token
 export NEON_API_KEY=alchemy-fake-local-neon-key
 export ARCHIL_API_KEY=alchemy-fake-local-archil-key
 export BOAT_API_KEY=boat_alchemy-fake-local-key
+export BRAINTRUST_API_KEY=alchemy-fake-local-braintrust-key
 
 export PLANETSCALE_API_TOKEN_ID=alchemy-fake-local-planetscale-id
 export PLANETSCALE_API_TOKEN=alchemy-fake-local-planetscale-token

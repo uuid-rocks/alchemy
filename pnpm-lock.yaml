@@ -9180,6 +9180,28 @@ importers:
         specifier: 'catalog:'
         version: 7.1.0-dev.20261105.1
 
+  packages/braintrust:
+    dependencies:
+      '@distilled.cloud/braintrust':
+        specifier: workspace:*
+        version: link:../../submodules/distilled/packages/braintrust
+      '@distilled.cloud/core':
+        specifier: workspace:*
+        version: link:../../submodules/distilled/packages/core
+    devDependencies:
+      '@types/bun':
+        specifier: 'catalog:'
+        version: 1.4.3
+      alchemy:
+        specifier: workspace:*
+        version: link:../alchemy
+      effect:
+        specifier: 4.1.4
+        version: 4.1.4
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-dev.20261105.1
+
   packages/cloudflare:
     dependencies:
       '@alchemy.run/acme':
@@ -10679,6 +10701,9 @@ importers:
       '@alchemy.run/boat':
         specifier: workspace:*
         version: link:../boat
+      '@alchemy.run/braintrust':
+        specifier: workspace:*
+        version: link:../braintrust
       '@alchemy.run/cloudflare':
         specifier: workspace:*
         version: link:../cloudflare
@@ -10781,6 +10806,9 @@ importers:
       '@distilled.cloud/boat-dev':
         specifier: workspace:*
         version: link:../../submodules/distilled/packages/boat-dev
+      '@distilled.cloud/braintrust':
+        specifier: workspace:*
+        version: link:../../submodules/distilled/packages/braintrust
       '@distilled.cloud/cloudflare':
         specifier: workspace:*
         version: link:../../submodules/distilled/packages/cloudflare
@@ -11584,6 +11612,9 @@ importers:
       '@alchemy.run/boat':
         specifier: workspace:*
         version: link:../packages/boat
+      '@alchemy.run/braintrust':
+        specifier: workspace:*
+        version: link:../packages/braintrust
       '@alchemy.run/cloudflare':
         specifier: workspace:*
         version: link:../packages/cloudflare
@@ -11825,6 +11856,22 @@ importers:
         version: 26.6.5
 
   submodules/distilled/packages/boat-dev:
+    dependencies:
+      '@distilled.cloud/core':
+        specifier: workspace:*
+        version: link:../core
+      effect:
+        specifier: 4.1.4
+        version: 4.1.4
+    devDependencies:
+      '@distilled.cloud/dev':
+        specifier: workspace:*
+        version: link:../dev
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
+  submodules/distilled/packages/braintrust:
     dependencies:
       '@distilled.cloud/core':
         specifier: workspace:*
