@@ -7,5 +7,6 @@ export {
   fromAuthProvider,
 } from "./Credentials.ts";
 export * from "./Dataset.ts";
+export * from "./Experiment.ts";
 export * from "./Project.ts";
 export * from "./Providers.ts";

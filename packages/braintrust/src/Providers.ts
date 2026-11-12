@@ -6,6 +6,7 @@ import * as Layer from "effect/Layer";
 import { BraintrustAuth } from "./AuthProvider.ts";
 import * as Credentials from "./Credentials.ts";
 import { Dataset, DatasetProvider } from "./Dataset.ts";
+import { Experiment, ExperimentProvider } from "./Experiment.ts";
 import { Project, ProjectProvider } from "./Project.ts";
 
 /**
@@ -27,8 +28,8 @@ export type ProviderRequirements = Layer.Services<ReturnType<typeof providers>>;
  * ```
  */
 export const providers = () =>
-  Layer.effect(Providers, Provider.collection([Dataset, Project])).pipe(
-    Layer.provide(Layer.mergeAll(DatasetProvider(), ProjectProvider())),
+  Layer.effect(Providers, Provider.collection([Dataset, Experiment, Project])).pipe(
+    Layer.provide(Layer.mergeAll(DatasetProvider(), ExperimentProvider(), ProjectProvider())),
     Layer.provideMerge(Credentials.fromAuthProvider()),
     Layer.provideMerge(FetchHttpClient.layer),
     Layer.provideMerge(BraintrustAuth),
