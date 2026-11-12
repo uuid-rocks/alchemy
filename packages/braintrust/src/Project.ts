@@ -91,8 +91,8 @@ export interface ProjectLookup {
 
 /**
  * A Braintrust project. A project holds the logs, experiments, datasets,
- * prompts and functions of one AI feature or application.
- * @see https://www.braintrust.dev/docs/guides/projects
+ * prompts and functions of one AI feature or application. See
+ * [Projects](https://www.braintrust.dev/docs/guides/projects).
  *
  * Projects carry no tags, so Alchemy recognizes its own by name: a project
  * found under an explicit `name` with no prior state is refused unless

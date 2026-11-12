@@ -92,8 +92,8 @@ export interface ExperimentLookup {
 
 /**
  * A Braintrust experiment: one run of an eval, whose logged results and
- * scores are compared against other experiments in the project.
- * @see https://www.braintrust.dev/docs/guides/evals
+ * scores are compared against other experiments in the project. See
+ * [Evals](https://www.braintrust.dev/docs/guides/evals).
  *
  * Evals usually create their experiments themselves through the Braintrust
  * SDK. Declare one with Alchemy when it should outlive a single run, such

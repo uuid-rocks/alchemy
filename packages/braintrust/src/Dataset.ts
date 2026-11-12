@@ -75,8 +75,8 @@ export interface DatasetLookup {
 /**
  * A Braintrust dataset: versioned records (input, expected output,
  * metadata) that evals run against. Alchemy manages the dataset itself;
- * records are written through the Braintrust SDK or the API.
- * @see https://www.braintrust.dev/docs/guides/datasets
+ * records are written through the Braintrust SDK or the API. See
+ * [Datasets](https://www.braintrust.dev/docs/guides/datasets).
  *
  * Datasets carry no tags Alchemy can use for ownership, so a dataset found
  * under an explicit `name` with no prior state is refused unless adopted.
