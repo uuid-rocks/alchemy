@@ -80,10 +80,10 @@ export const ServiceAccount = Resource<ServiceAccount>("Braintrust.ServiceAccoun
 
 /** Braintrust answered a service account create without the new account. */
 export class ServiceAccountNotCreated extends Data.TaggedError("ServiceAccountNotCreated")<{
-  name: string;
+  accountName: string;
 }> {
   override get message() {
-    return `Braintrust did not return the new service account ${this.name}`;
+    return `Braintrust did not return the new service account ${this.accountName}`;
   }
 }
 
@@ -117,7 +117,7 @@ export const ServiceAccountProvider = () =>
             invite_users: { service_accounts: [{ name }] },
           });
           const added = result.added_users?.[0];
-          if (!added) return yield* Effect.fail(new ServiceAccountNotCreated({ name }));
+          if (!added) return yield* new ServiceAccountNotCreated({ accountName: name });
           return { serviceAccountId: added.id, name, email: added.email ?? undefined };
         }),
         delete: Effect.fn(function* ({ output }) {

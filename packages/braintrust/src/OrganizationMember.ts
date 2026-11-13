@@ -168,7 +168,7 @@ export const OrganizationMemberProvider = () =>
             });
             user = yield* findByEmail(news.email);
             if (!user) {
-              return yield* Effect.fail(new OrganizationMemberNotInvited({ email: news.email }));
+              return yield* new OrganizationMemberNotInvited({ email: news.email });
             }
           }
 
