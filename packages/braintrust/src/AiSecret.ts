@@ -165,7 +165,8 @@ export const AiSecretProvider = () =>
             const secret = yield* getById(output.aiSecretId);
             return secret ? toAttributes(secret) : undefined;
           }
-          const secret = yield* findByName(yield* braintrustName(id, olds?.name));
+          const name = yield* braintrustName(id, olds?.name);
+          const secret = yield* findByName(name);
           if (!secret) return undefined;
           const attrs = toAttributes(secret);
           // A generated name carries this instance's suffix, so it is ours.

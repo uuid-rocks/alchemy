@@ -256,10 +256,8 @@ export const ExperimentProvider = () =>
             const experiment = yield* getById(output.experimentId);
             return experiment ? toAttributes(experiment) : undefined;
           }
-          const experiment = yield* findByName(
-            olds.projectId,
-            yield* braintrustName(id, olds.name),
-          );
+          const name = yield* braintrustName(id, olds.name);
+          const experiment = yield* findByName(olds.projectId, name);
           if (!experiment) return undefined;
           const attrs = toAttributes(experiment);
           // A generated name carries this instance's suffix, so it is ours.

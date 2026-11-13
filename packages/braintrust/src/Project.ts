@@ -227,7 +227,8 @@ export const ProjectProvider = () =>
             const project = yield* getById(output.projectId);
             return project ? toAttributes(project) : undefined;
           }
-          const project = yield* findByName(yield* braintrustName(id, olds?.name));
+          const name = yield* braintrustName(id, olds?.name);
+          const project = yield* findByName(name);
           if (!project) return undefined;
           const attrs = toAttributes(project);
           // A generated name carries this instance's suffix, so it is ours.

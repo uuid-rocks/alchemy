@@ -129,7 +129,8 @@ export const EnvironmentProvider = () =>
             const environment = yield* getById(output.environmentId);
             return environment ? toAttributes(environment) : undefined;
           }
-          const environment = yield* findBySlug(yield* braintrustName(id, olds?.slug));
+          const slug = yield* braintrustName(id, olds?.slug);
+          const environment = yield* findBySlug(slug);
           if (!environment) return undefined;
           const attrs = toAttributes(environment);
           // A generated slug carries this instance's suffix, so it is ours.

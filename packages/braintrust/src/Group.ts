@@ -161,7 +161,8 @@ export const GroupProvider = () =>
             const group = yield* getById(output.groupId);
             return group ? toAttributes(group) : undefined;
           }
-          const group = yield* findByName(yield* braintrustName(id, olds?.name));
+          const name = yield* braintrustName(id, olds?.name);
+          const group = yield* findByName(name);
           if (!group) return undefined;
           const attrs = toAttributes(group);
           // A generated name carries this instance's suffix, so it is ours.

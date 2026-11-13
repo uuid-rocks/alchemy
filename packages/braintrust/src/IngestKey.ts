@@ -158,7 +158,8 @@ export const IngestKeyProvider = () =>
             const key = yield* findById(output.projectId, output.ingestKeyId);
             return key ? toAttributes(key) : undefined;
           }
-          const key = yield* findByName(olds.projectId, yield* braintrustName(id, olds.name));
+          const name = yield* braintrustName(id, olds.name);
+          const key = yield* findByName(olds.projectId, name);
           if (!key) return undefined;
           const attrs = toAttributes(key);
           // A generated name carries this instance's suffix, so it is ours.

@@ -184,7 +184,8 @@ export const McpServerProvider = () =>
             const server = yield* getById(output.mcpServerId);
             return server ? toAttributes(server, redact) : undefined;
           }
-          const server = yield* findByName(olds.projectId, yield* braintrustName(id, olds.name));
+          const name = yield* braintrustName(id, olds.name);
+          const server = yield* findByName(olds.projectId, name);
           if (!server) return undefined;
           const attrs = toAttributes(server, redact);
           // A generated name carries this instance's suffix, so it is ours.

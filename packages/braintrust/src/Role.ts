@@ -191,7 +191,8 @@ export const RoleProvider = () =>
             const role = yield* getById(output.roleId);
             return role ? toAttributes(role) : undefined;
           }
-          const role = yield* findByName(yield* braintrustName(id, olds?.name));
+          const name = yield* braintrustName(id, olds?.name);
+          const role = yield* findByName(name);
           if (!role) return undefined;
           const attrs = toAttributes(role);
           // A generated name carries this instance's suffix, so it is ours.

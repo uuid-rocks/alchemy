@@ -180,7 +180,8 @@ export const DatasetProvider = () =>
             const dataset = yield* getById(output.datasetId);
             return dataset ? toAttributes(dataset) : undefined;
           }
-          const dataset = yield* findByName(olds.projectId, yield* braintrustName(id, olds.name));
+          const name = yield* braintrustName(id, olds.name);
+          const dataset = yield* findByName(olds.projectId, name);
           if (!dataset) return undefined;
           const attrs = toAttributes(dataset);
           // A generated name carries this instance's suffix, so it is ours.
