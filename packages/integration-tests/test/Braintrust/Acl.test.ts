@@ -35,7 +35,7 @@ const program = (grants: Record<string, Grant>) =>
     const project = yield* Braintrust.Project("Project", {});
     const group = yield* Braintrust.Group("Group", {});
     const role = yield* Braintrust.Role("Role", { memberPermissions: [{ permission: "read" }] });
-    const acls: Record<string, Braintrust.AclAttributes> = {};
+    const acls: Record<string, Braintrust.Acl> = {};
     for (const [id, { useRole, ...grant }] of Object.entries(grants)) {
       acls[id] = yield* Braintrust.Acl(id, {
         objectType: "project",

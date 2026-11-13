@@ -29,15 +29,14 @@ const expectGroupGone = (groupId: string) =>
  * A group whose members are test-owned: a service account and a second
  * group, both deployed in the same stack and kept across every step.
  */
-const program = (props: (members: { userId: string; groupId: string }) => Braintrust.GroupProps) =>
+const program = (props: { description?: string; withUser?: boolean; withGroup?: boolean }) =>
   Effect.gen(function* () {
     const account = yield* Braintrust.ServiceAccount("Member", {});
     const inner = yield* Braintrust.Group("Inner", {});
     const group = yield* Braintrust.Group("Group", {
-      ...props({
-        userId: account.serviceAccountId as unknown as string,
-        groupId: inner.groupId as unknown as string,
-      }),
+      description: props.description,
+      memberUserIds: props.withUser ? [account.serviceAccountId] : undefined,
+      memberGroupIds: props.withGroup ? [inner.groupId] : undefined,
     });
     return { group, userId: account.serviceAccountId, innerId: inner.groupId };
   });
@@ -48,11 +47,7 @@ test.provider(
     Effect.gen(function* () {
       yield* stack.destroy();
 
-      const full = program(({ userId, groupId }) => ({
-        description: "first",
-        memberUserIds: [userId],
-        memberGroupIds: [groupId],
-      }));
+      const full = program({ description: "first", withUser: true, withGroup: true });
       const { group, userId, innerId } = yield* stack.deploy(full);
       const created = yield* getGroup(group.groupId);
       expect(created.name).toBe(group.name);
@@ -66,11 +61,7 @@ test.provider(
 
       // Partial update: only the description changes; members stay.
       const described = yield* stack.deploy(
-        program(({ userId, groupId }) => ({
-          description: "second",
-          memberUserIds: [userId],
-          memberGroupIds: [groupId],
-        })),
+        program({ description: "second", withUser: true, withGroup: true }),
       );
       expect(described.group.groupId).toBe(group.groupId);
       const afterDescription = yield* getGroup(group.groupId);
@@ -79,14 +70,12 @@ test.provider(
       expect(afterDescription.member_groups).toEqual([innerId]);
 
       // Drop the user, keep the group.
-      yield* stack.deploy(
-        program(({ groupId }) => ({ description: "second", memberGroupIds: [groupId] })),
-      );
+      yield* stack.deploy(program({ description: "second", withGroup: true }));
       const afterDrop = yield* getGroup(group.groupId);
       expect(afterDrop.member_users ?? []).toEqual([]);
       expect(afterDrop.member_groups).toEqual([innerId]);
 
-      const cleared = yield* stack.deploy(program(() => ({})));
+      const cleared = yield* stack.deploy(program({}));
       expect(cleared.group.groupId).toBe(group.groupId);
       const after = yield* getGroup(group.groupId);
       expect(after.description || undefined).toBeUndefined();

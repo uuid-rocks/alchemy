@@ -74,42 +74,36 @@ test.provider(
       yield* stack.destroy();
 
       // Both groups stay deployed throughout; only the project's list changes.
-      const program = (
-        pick: (ids: { a: string; b: string }) => string[] | undefined,
-        description?: string,
-      ) =>
+      const program = (groups: ("A" | "B")[], description?: string) =>
         Effect.gen(function* () {
           const a = yield* Braintrust.ProjectGroup("A", {});
           const b = yield* Braintrust.ProjectGroup("B", {});
-          const ids = {
-            a: a.projectGroupId as unknown as string,
-            b: b.projectGroupId as unknown as string,
-          };
+          const ids = { A: a.projectGroupId, B: b.projectGroupId };
           const project = yield* Braintrust.Project("Project", {
             description,
-            projectGroupIds: pick(ids),
+            projectGroupIds: groups.map((group) => ids[group]),
           });
           return { a: a.projectGroupId, b: b.projectGroupId, projectId: project.projectId };
         });
 
-      const first = yield* stack.deploy(program(({ a }) => [a], "kept"));
+      const first = yield* stack.deploy(program(["A"], "kept"));
       expect(yield* membersOf(first.a)).toEqual([first.projectId]);
       expect(yield* membersOf(first.b)).toEqual([]);
 
-      const both = yield* stack.deploy(program(({ a, b }) => [a, b], "kept"));
+      const both = yield* stack.deploy(program(["A", "B"], "kept"));
       expect(both.projectId).toBe(first.projectId);
       expect(yield* membersOf(first.a)).toEqual([first.projectId]);
       expect(yield* membersOf(first.b)).toEqual([first.projectId]);
 
       // Partial update: moving the project leaves its description alone.
-      yield* stack.deploy(program(({ b }) => [b], "kept"));
+      yield* stack.deploy(program(["B"], "kept"));
       expect(yield* membersOf(first.a)).toEqual([]);
       expect(yield* membersOf(first.b)).toEqual([first.projectId]);
       expect((yield* braintrust.getProject({ project_id: first.projectId })).description).toBe(
         "kept",
       );
 
-      yield* stack.deploy(program(() => [], "kept"));
+      yield* stack.deploy(program([], "kept"));
       expect(yield* membersOf(first.a)).toEqual([]);
       expect(yield* membersOf(first.b)).toEqual([]);
 
