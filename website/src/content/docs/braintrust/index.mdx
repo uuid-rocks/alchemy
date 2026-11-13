@@ -1,0 +1,65 @@
+---
+title: Braintrust
+description: Evals as resources — projects, datasets, experiments, prompts, scorers and access control declared next to the app they evaluate.
+---
+
+import HubMap from "../../../components/HubMap.astro";
+
+Braintrust is a platform for evaluating and observing AI applications. You log your app's traces to a project, run evals over datasets as experiments, and compare experiments to see whether a change made answers better or worse.
+
+Prompts and scorers live in Braintrust as versioned objects your code loads by slug. Roles, groups and ACLs decide who can read or change each project.
+
+## A quick example
+
+A Project holds one AI feature's logs, datasets and experiments:
+
+```typescript
+const project = yield* Braintrust.Project("Support", {
+  description: "Evals and logs for the support bot",
+});
+```
+
+A Dataset holds the records your evals run against:
+
+```typescript
+const dataset = yield* Braintrust.Dataset("Tickets", {
+  projectId: project.projectId,
+});
+```
+
+An Experiment pinned to that dataset is the baseline other runs compare against:
+
+```typescript
+const baseline = yield* Braintrust.Experiment("Baseline", {
+  projectId: project.projectId,
+  datasetId: dataset.datasetId,
+});
+```
+
+A Group with an Acl gives a team access to the project, and nothing else:
+
+```typescript
+const reviewers = yield* Braintrust.Group("Reviewers", {});
+yield* Braintrust.Acl("ReviewersRead", {
+  objectType: "project",
+  objectId: project.projectId,
+  groupId: reviewers.groupId,
+  permission: "read",
+});
+```
+
+## Where to start
+
+**Want to build?** Connect your organization in [Setup](/braintrust/setup).
+
+**Looking for something specific?** Every resource is in the generated API reference below.
+
+## Out of scope
+
+- **User API keys.** The API can't create them; they are made in the Braintrust UI.
+- **Users.** People join by sign-up or invite. Use `Braintrust.OrganizationMember` to invite one.
+- **Endpoints not in Braintrust's OpenAPI spec**: BTQL queries, uploading bundled function code, and assigning objects to environments.
+
+## The docs
+
+<HubMap />
