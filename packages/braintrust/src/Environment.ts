@@ -3,6 +3,7 @@ import { unownedUnlessPrevious } from "alchemy/AdoptPolicy";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
+import * as Schedule from "effect/Schedule";
 import { braintrustName, isGeneratedName, unlessDeleted } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
@@ -149,13 +150,24 @@ export const EnvironmentProvider = () =>
 
           // Ensure — unlike most Braintrust objects, a second create with the
           // same slug fails rather than returning the existing environment.
+          // That create raced this one or lost its state, and the list can
+          // lag it by a few seconds, so observe it again.
           if (!environment) {
             yield* session.note(`Creating environment ${slug}...`);
-            environment = yield* braintrust.createEnvironment({
-              slug,
-              name,
-              description: news.description,
-            });
+            environment = yield* braintrust
+              .createEnvironment({ slug, name, description: news.description })
+              .pipe(
+                Effect.catchTag("EnvironmentSlugAlreadyExists", (error) =>
+                  findBySlug(slug).pipe(
+                    Effect.repeat({
+                      schedule: Schedule.spaced("1 second"),
+                      until: (found) => found !== undefined,
+                      times: 10,
+                    }),
+                    Effect.flatMap((found) => (found ? Effect.succeed(found) : Effect.fail(error))),
+                  ),
+                ),
+              );
           }
 
           // Sync — PATCH only the fields that differ; `null` clears the description.
