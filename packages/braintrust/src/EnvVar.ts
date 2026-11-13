@@ -30,9 +30,8 @@ export interface EnvVarProps {
    */
   name: string;
   /**
-   * The value. Braintrust encrypts it at rest and never returns it, so
-   * Alchemy rewrites it when it changes here or when it was rotated outside
-   * Alchemy.
+   * The value. Braintrust encrypts it at rest and never returns it.
+   * Changing it updates the variable in place.
    */
   value: Redacted.Redacted<string>;
   /**
@@ -100,8 +99,10 @@ export interface EnvVarLookup {
  *
  * The value is a `Redacted` string: Alchemy never logs it, and state keeps
  * it as a `Redacted` value like every other secret prop. Braintrust never
- * returns it, so a value rotated in the Braintrust UI is detected by its
- * update time and rewritten on the next deploy.
+ * returns it, so Alchemy tracks when the value was last written: a value
+ * rotated in the Braintrust UI shows up in `alchemy drift`, and repairing
+ * the drift writes the value from the props again.
+ * Since the stored value can't be compared, every update writes it again.
  *
  * Variables carry no tags Alchemy can use for ownership, so a variable found
  * under the same scope and name with no prior state is refused unless
@@ -227,7 +228,7 @@ export const EnvVarProvider = () =>
             ? unownedUnlessPrevious(toAttributes(envVar), previous, "envVarId")
             : undefined;
         }),
-        reconcile: Effect.fn(function* ({ news, olds, output, session }) {
+        reconcile: Effect.fn(function* ({ news, output, session }) {
           const inScope = (envVar: braintrust.EnvVar | undefined) =>
             envVar?.object_type === news.objectType && envVar.object_id === news.objectId
               ? envVar
@@ -255,15 +256,12 @@ export const EnvVarProvider = () =>
             created = true;
           }
 
-          // Sync — the value is write-only. Rewrite it unless we just created
-          // it, or it is the value we last wrote and nobody has written one
-          // since (the update time we recorded still matches).
+          // Sync — the value can't be observed, so it is written whenever
+          // reconcile runs: on a props change, an adoption, or a drift repair
+          // after it was rotated elsewhere (which `read` reports through the
+          // changed update time). A create has just written it.
           const update: Omit<braintrust.UpdateEnvVarRequest, "env_var_id" | "name"> = {};
-          const valueKnown =
-            olds !== undefined &&
-            Redacted.value(olds.value) === Redacted.value(news.value) &&
-            output?.secretUpdatedAt === (envVar.secret_updated_at ?? undefined);
-          if (!created && !valueKnown) update.value = news.value;
+          if (!created) update.value = news.value;
           // `null` clears metadata and the classification; metadata is
           // replaced as a whole.
           if (!deepEqual(envVar.metadata ?? undefined, news.metadata)) {
@@ -272,7 +270,8 @@ export const EnvVarProvider = () =>
           if ((envVar.secret_type ?? undefined) !== news.secretType) {
             update.secret_type = news.secretType ?? null;
           }
-          if (envVar.name !== news.name || Object.keys(update).length > 0) {
+          const updating = envVar.name !== news.name || Object.keys(update).length > 0;
+          if (updating) {
             yield* session.note(`Updating environment variable ${news.name}...`);
             // PATCH requires the name on every call.
             envVar = yield* braintrust.updateEnvVar({
@@ -281,6 +280,11 @@ export const EnvVarProvider = () =>
               ...update,
             });
           }
+
+          // Writes answer with a fully masked preview, reads with the value's
+          // ends; re-read so the attributes match what `read` reports and
+          // drift detection doesn't flag every write.
+          if (created || updating) envVar = (yield* getById(envVar.id)) ?? envVar;
 
           return toAttributes(envVar);
         }),

@@ -29,8 +29,7 @@ export interface AiSecretProps {
   metadata?: Record<string, unknown>;
   /**
    * The provider's API key. Braintrust encrypts it at rest and never
-   * returns it, so Alchemy rewrites it when it changes here or when it was
-   * rotated outside Alchemy.
+   * returns it. Changing it updates the secret in place.
    */
   secret: Redacted.Redacted<string>;
 }
@@ -80,8 +79,10 @@ export interface AiSecretLookup {
  *
  * The key is a `Redacted` string: Alchemy never logs it, and state keeps it
  * as a `Redacted` value like every other secret prop. Braintrust never
- * returns it, so a key rotated in the Braintrust UI is detected by its update
- * time and rewritten on the next deploy.
+ * returns it, so Alchemy tracks when the key was last written: a key rotated
+ * in the Braintrust UI shows up in `alchemy drift`, and repairing the drift
+ * writes the key from the props again.
+ * Since the stored key can't be compared, every update writes it again.
  *
  * Secrets carry no tags Alchemy can use for ownership, so a secret found
  * under an explicit `name` with no prior state is refused unless adopted.
@@ -172,7 +173,7 @@ export const AiSecretProvider = () =>
             ? attrs
             : unownedUnlessPrevious(attrs, previous, "aiSecretId");
         }),
-        reconcile: Effect.fn(function* ({ id, news, olds, output, session }) {
+        reconcile: Effect.fn(function* ({ id, news, output, session }) {
           const name = yield* braintrustName(id, news.name);
 
           // Observe — by id once we have one (it survives renames), else by name.
@@ -194,17 +195,14 @@ export const AiSecretProvider = () =>
             created = true;
           }
 
-          // Sync the name and key with PATCH. The key is write-only: rewrite
-          // it unless we just created it, or it is the key we last wrote and
-          // nobody has written one since (the update time we recorded still
-          // matches).
+          // Sync the name and key with PATCH. The key can't be observed, so
+          // it is written whenever reconcile runs: on a props change, an
+          // adoption, or a drift repair after it was rotated elsewhere (which
+          // `read` reports through the changed update time). A create has
+          // just written it.
           const update: Omit<braintrust.UpdateAiSecretRequest, "ai_secret_id"> = {};
           if (secret.name !== name) update.name = name;
-          const secretKnown =
-            olds !== undefined &&
-            Redacted.value(olds.secret) === Redacted.value(news.secret) &&
-            output?.secretUpdatedAt === (secret.secret_updated_at ?? undefined);
-          if (!created && !secretKnown) update.secret = news.secret;
+          if (!created) update.secret = news.secret;
           if (Object.keys(update).length > 0) {
             yield* session.note(`Updating AI secret ${name}...`);
             secret = yield* braintrust.updateAiSecret({ ai_secret_id: secret.id, ...update });
