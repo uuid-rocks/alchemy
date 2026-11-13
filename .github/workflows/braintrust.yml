@@ -1,0 +1,54 @@
+name: Braintrust
+
+# Runs the Braintrust provider's live suite against the test organization.
+# Check runs no provider live tests, and this one needs a Braintrust key.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - "packages/braintrust/**"
+      - "packages/integration-tests/test/Braintrust/**"
+      - "submodules/distilled"
+      - ".github/workflows/braintrust.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The suite shares one Braintrust organization, so runs never overlap.
+concurrency:
+  group: braintrust-live
+  cancel-in-progress: false
+
+jobs:
+  live:
+    name: Braintrust live tests
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    env:
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+    steps:
+      # Pull requests from forks get no secrets.
+      - name: Skip without BRAINTRUST_API_KEY
+        if: env.BRAINTRUST_API_KEY == ''
+        run: echo "::notice::BRAINTRUST_API_KEY is not set, so the Braintrust live tests were skipped."
+
+      - name: Checkout repository
+        if: env.BRAINTRUST_API_KEY != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Checkout distilled
+        if: env.BRAINTRUST_API_KEY != ''
+        run: git submodule update --init --depth=1 --checkout -- submodules/distilled
+
+      - name: Setup pnpm, Node.js, Bun and install dependencies
+        if: env.BRAINTRUST_API_KEY != ''
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          cache: true
+          install: true
+          require-lockfile: true
+
+      - name: Run Braintrust tests
+        if: env.BRAINTRUST_API_KEY != ''
+        run: timeout 900 pnpm test:integration test/Braintrust --retry 0

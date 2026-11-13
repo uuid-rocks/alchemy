@@ -1,0 +1,40 @@
+---
+title: Setup
+description: Connect alchemy to your Braintrust organization with an API key or a service token.
+---
+
+import PackageManagers from "../../../components/PackageManagers.astro";
+
+Sign up at [braintrust.dev](https://www.braintrust.dev). Install `@alchemy.run/braintrust`:
+
+<PackageManagers add="@alchemy.run/braintrust" />
+
+Register the provider next to your cloud's:
+
+```typescript
+// alchemy.run.ts
+import * as Braintrust from "@alchemy.run/braintrust";
+
+providers: Layer.mergeAll(Cloudflare.providers(), Braintrust.providers()),
+```
+
+## Choose a key
+
+Resources are created in the organization the key belongs to.
+
+- **API key** (`sk-…`): create one under **Settings → API keys**. It acts as you.
+- **Service token** (`bt-st-…`): create a service account and a token for it in your organization's settings. It acts as the service account. `Braintrust.ServiceToken` needs a service token deployer: Braintrust refuses to create service tokens with a user API key.
+
+## Store it in a profile
+
+Run `alchemy profile edit --add Braintrust` and paste the key. It is saved under `~/.alchemy/credentials/<profile>/`. Leave the API URL empty unless you run a self-hosted data plane.
+
+## CI
+
+In CI (`CI=true`), profiles are bypassed. Set `BRAINTRUST_API_KEY`, and `BRAINTRUST_API_URL` for a self-hosted data plane.
+
+See [Profiles](/environments/profiles) for how credentials are stored and switched.
+
+## Next steps
+
+- [Braintrust overview](/braintrust): resources and what they're for.

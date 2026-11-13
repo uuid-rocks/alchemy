@@ -64,6 +64,7 @@ export const TAB_ICONS: Record<string, string | undefined> = {
   // Brand-colored prism for marketing surfaces.
   PrismaColor: b("prisma-color"),
   Axiom: b("axiom"),
+  Braintrust: b("braintrust"),
   "Better Auth": b("betterauth"),
   GitHub: b("github"),
   Git: b("git"),
@@ -169,6 +170,7 @@ const GROUP_ICONS: Record<string, string | undefined> = {
   PlanetScale: b("planetscale"),
   Prisma: b("prisma"),
   Axiom: b("axiom"),
+  Braintrust: b("braintrust"),
   Docker: b("docker"),
   Kubernetes: b("kubernetes"),
   Rivet: b("rivet"),

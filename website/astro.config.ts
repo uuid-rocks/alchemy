@@ -50,6 +50,7 @@ function providersSidebarEntry() {
       { label: "Prisma", link: "/prisma" },
       { label: "Better Auth", link: "/better-auth" },
       { label: "Axiom", link: "/axiom" },
+      { label: "Braintrust", link: "/braintrust" },
       { label: "GitHub", link: "/github" },
       { label: "Stripe", link: "/stripe" },
       { label: "Docker", link: "/docker" },
@@ -1966,6 +1967,14 @@ export default defineConfig({
               ],
             },
             providerResourcesEntry("Axiom"),
+          ],
+        },
+        {
+          label: "Braintrust",
+          items: [
+            { label: "Overview", link: "/braintrust" },
+            { label: "Setup", link: "/braintrust/setup" },
+            providerResourcesEntry("Braintrust"),
           ],
         },
         {

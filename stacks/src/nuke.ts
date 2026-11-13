@@ -1,6 +1,7 @@
 import * as Archil from "@alchemy.run/archil";
 import * as AWS from "@alchemy.run/aws";
 import * as Boat from "@alchemy.run/boat";
+import * as Braintrust from "@alchemy.run/braintrust";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Daytona from "@alchemy.run/daytona";
 import * as E2B from "@alchemy.run/e2b";
@@ -38,6 +39,7 @@ export default Alchemy.Stack(
       Archil.providers(),
       Modal.providers(),
       Boat.providers(),
+      Braintrust.providers(),
     ),
     state: Cloudflare.state(),
   },
