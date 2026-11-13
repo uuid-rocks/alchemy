@@ -1,7 +1,9 @@
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
+import { Credentials } from "@distilled.cloud/braintrust/Credentials";
 import { deepEqual, isResolved } from "alchemy/Diff";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
@@ -17,9 +19,10 @@ export interface ServiceTokenProps {
    */
   name?: string;
   /**
-   * Seconds from creation until the token expires. Omit for a token that
-   * never expires. When you deploy with a token that expires, Braintrust
-   * refuses new tokens that would outlive it, so set this.
+   * Seconds from creation until the token expires. Braintrust refuses a
+   * token that would outlive the token creating it, so when omitted the
+   * token never expires if the deployer's token doesn't, and otherwise
+   * expires with it.
    */
   expiresInSeconds?: number;
 }
@@ -107,6 +110,23 @@ const toAttributes = (
   created: token.created ?? undefined,
 });
 
+/**
+ * Seconds until the deployer's own service token expires, less a minute;
+ * `undefined` when it never expires or isn't in the list. The deployer's
+ * token is the one whose preview ends in its key's last four characters.
+ */
+const secondsLeftOnDeployerToken = Effect.gen(function* () {
+  const key = Redacted.value((yield* yield* Credentials).apiKey);
+  if (!key.startsWith("bt-st-")) return undefined;
+  const tokens = yield* Stream.runCollect(braintrust.listServiceTokens.items({}));
+  const expiries = Array.from(tokens)
+    .filter((token) => token.preview_name.slice(-4) === key.slice(-4))
+    .flatMap((token) => (token.expires_at ? [Date.parse(token.expires_at)] : []));
+  if (expiries.length === 0) return undefined;
+  const now = yield* Clock.currentTimeMillis;
+  return Math.max(60, Math.floor((Math.min(...expiries) - now) / 1000) - 60);
+});
+
 const getById = (serviceTokenId: string) =>
   braintrust
     .getServiceToken({ service_token_id: serviceTokenId })
@@ -142,7 +162,7 @@ export const ServiceTokenProvider = () =>
           const created = yield* braintrust.createServiceToken({
             name,
             service_account_id: news.serviceAccountId,
-            expires_in_seconds: news.expiresInSeconds,
+            expires_in_seconds: news.expiresInSeconds ?? (yield* secondsLeftOnDeployerToken),
           });
           const key = Redacted.isRedacted(created.key) ? created.key : Redacted.make(created.key);
           return toAttributes(created, key);
