@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -62,9 +62,10 @@ test.provider(
       expect(cleared.projectTagId).toBe(tag.projectTagId);
       expect(cleared.description).toBeUndefined();
       expect(cleared.color).toBeUndefined();
-      const after = yield* getTag(tag.projectTagId);
-      expect(after.description || undefined).toBeUndefined();
-      expect(after.color || undefined).toBeUndefined();
+      yield* eventually(getTag(tag.projectTagId), (after) => {
+        expect(after.description || undefined).toBeUndefined();
+        expect(after.color || undefined).toBeUndefined();
+      });
 
       yield* stack.destroy();
       yield* expectTagGone(tag.projectTagId);
@@ -91,7 +92,9 @@ test.provider(
       const first = yield* stack.deploy(program("A"));
       const moved = yield* stack.deploy(program("B"));
       expect(moved.projectTagId).not.toBe(first.projectTagId);
-      expect((yield* getTag(moved.projectTagId)).project_id).toBe(moved.projectId);
+      yield* eventually(getTag(moved.projectTagId), (observed) => {
+        expect(observed.project_id).toBe(moved.projectId);
+      });
       yield* expectTagGone(first.projectTagId);
 
       yield* stack.destroy();
@@ -109,7 +112,9 @@ test.provider(
       const tag = yield* stack.deploy(inProject({ name: testName("alchemy-test-bt-tag-a") }));
       const renamed = yield* stack.deploy(inProject({ name: testName("alchemy-test-bt-tag-b") }));
       expect(renamed.projectTagId).toBe(tag.projectTagId);
-      expect((yield* getTag(tag.projectTagId)).name).toBe(testName("alchemy-test-bt-tag-b"));
+      yield* eventually(getTag(tag.projectTagId), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-tag-b"));
+      });
 
       yield* stack.destroy();
       yield* expectTagGone(tag.projectTagId);
@@ -136,7 +141,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.projectTagId).toBe(foreign.id);
-      expect((yield* getTag(foreign.id)).description).toBe("adopted");
+      yield* eventually(getTag(foreign.id), (observed) => {
+        expect(observed.description).toBe("adopted");
+      });
 
       yield* stack.destroy();
       yield* expectTagGone(foreign.id);

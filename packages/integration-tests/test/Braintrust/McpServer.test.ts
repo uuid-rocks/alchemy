@@ -9,7 +9,7 @@ import * as Redacted from "effect/Redacted";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -59,17 +59,19 @@ test.provider(
       // Changing only the description leaves the URL alone.
       const described = yield* stack.deploy(inProject({ ...props, description: "second" }));
       expect(described.mcpServerId).toBe(server.mcpServerId);
-      const observed = yield* getMcpServer(server.mcpServerId);
-      expect(observed.description).toBe("second");
-      expect(observed.url).toBe("https://mcp.example.com/mcp");
+      yield* eventually(getMcpServer(server.mcpServerId), (observed) => {
+        expect(observed.description).toBe("second");
+        expect(observed.url).toBe("https://mcp.example.com/mcp");
+      });
 
       // A new path on the same origin updates in place; clear the description.
       const moved = yield* stack.deploy(inProject({ url: "https://mcp.example.com/v2/mcp" }));
       expect(moved.mcpServerId).toBe(server.mcpServerId);
-      const after = yield* getMcpServer(server.mcpServerId);
-      expect(after.url).toBe("https://mcp.example.com/v2/mcp");
-      expect(after.description || undefined).toBeUndefined();
-      expect(moved.description).toBeUndefined();
+      yield* eventually(getMcpServer(server.mcpServerId), (after) => {
+        expect(after.url).toBe("https://mcp.example.com/v2/mcp");
+        expect(after.description || undefined).toBeUndefined();
+        expect(moved.description).toBeUndefined();
+      });
 
       yield* stack.destroy();
       yield* expectMcpServerGone(server.mcpServerId);
@@ -97,14 +99,16 @@ test.provider(
       const first = yield* stack.deploy(program("A", "https://mcp.example.com/mcp"));
       const reoriginated = yield* stack.deploy(program("A", "https://tools.example.com/mcp"));
       expect(reoriginated.mcpServerId).not.toBe(first.mcpServerId);
-      expect((yield* getMcpServer(reoriginated.mcpServerId)).url).toBe(
-        "https://tools.example.com/mcp",
-      );
+      yield* eventually(getMcpServer(reoriginated.mcpServerId), (observed) => {
+        expect(observed.url).toBe("https://tools.example.com/mcp");
+      });
       yield* expectMcpServerGone(first.mcpServerId);
 
       const moved = yield* stack.deploy(program("B", "https://tools.example.com/mcp"));
       expect(moved.mcpServerId).not.toBe(reoriginated.mcpServerId);
-      expect((yield* getMcpServer(moved.mcpServerId)).project_id).toBe(moved.projectId);
+      yield* eventually(getMcpServer(moved.mcpServerId), (observed) => {
+        expect(observed.project_id).toBe(moved.projectId);
+      });
       yield* expectMcpServerGone(reoriginated.mcpServerId);
 
       yield* stack.destroy();
@@ -123,7 +127,9 @@ test.provider(
       const server = yield* stack.deploy(inProject({ url: Redacted.make(url) }));
       expect(Redacted.isRedacted(server.url)).toBe(true);
       expect(JSON.stringify(server)).not.toContain("secret-token-12345");
-      expect((yield* getMcpServer(server.mcpServerId)).url).toBe(url);
+      yield* eventually(getMcpServer(server.mcpServerId), (observed) => {
+        expect(observed.url).toBe(url);
+      });
 
       const plan = yield* stack.plan(inProject({ url: Redacted.make(url) }));
       expect(plan.resources.McpServer.action).toBe("noop");
@@ -148,9 +154,9 @@ test.provider(
         inProject({ name: testName("alchemy-test-bt-mcp-b"), url }),
       );
       expect(renamed.mcpServerId).toBe(server.mcpServerId);
-      expect((yield* getMcpServer(server.mcpServerId)).name).toBe(
-        testName("alchemy-test-bt-mcp-b"),
-      );
+      yield* eventually(getMcpServer(server.mcpServerId), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-mcp-b"));
+      });
 
       yield* stack.destroy();
       yield* expectMcpServerGone(server.mcpServerId);
@@ -183,7 +189,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.mcpServerId).toBe(foreign.id);
-      expect((yield* getMcpServer(foreign.id)).description).toBe("adopted");
+      yield* eventually(getMcpServer(foreign.id), (observed) => {
+        expect(observed.description).toBe("adopted");
+      });
 
       yield* stack.destroy();
       yield* expectMcpServerGone(foreign.id);

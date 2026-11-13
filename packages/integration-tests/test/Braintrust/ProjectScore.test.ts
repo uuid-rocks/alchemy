@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -75,7 +75,9 @@ test.provider(
 
       // The config is replaced as a whole, not merged.
       yield* stack.deploy(inProject({ ...first, config: { destination: "metadata" } }));
-      expect((yield* getScore(score.projectScoreId)).config).toEqual({ destination: "metadata" });
+      yield* eventually(getScore(score.projectScoreId), (observed) => {
+        expect(observed.config).toEqual({ destination: "metadata" });
+      });
 
       const cleared = yield* stack.deploy(inProject({ scoreType: "slider" }));
       expect(cleared.projectScoreId).toBe(score.projectScoreId);
@@ -83,11 +85,12 @@ test.provider(
       expect(cleared.description).toBeUndefined();
       expect(cleared.categories).toBeUndefined();
       expect(cleared.config).toBeUndefined();
-      const after = yield* getScore(score.projectScoreId);
-      expect(after.score_type).toBe("slider");
-      expect(after.description || undefined).toBeUndefined();
-      expect(after.categories ?? []).toEqual([]);
-      expect(after.config ?? {}).toEqual({});
+      yield* eventually(getScore(score.projectScoreId), (after) => {
+        expect(after.score_type).toBe("slider");
+        expect(after.description || undefined).toBeUndefined();
+        expect(after.categories ?? []).toEqual([]);
+        expect(after.config ?? {}).toEqual({});
+      });
 
       const replan = yield* stack.plan(inProject({ scoreType: "slider" }));
       expect(replan.resources.Score.action).toBe("noop");
@@ -107,12 +110,16 @@ test.provider(
       const score = yield* stack.deploy(
         inProject({ scoreType: "weighted", categories: { accuracy: 2, tone: 1 } }),
       );
-      expect((yield* getScore(score.projectScoreId)).categories).toEqual({ accuracy: 2, tone: 1 });
+      yield* eventually(getScore(score.projectScoreId), (observed) => {
+        expect(observed.categories).toEqual({ accuracy: 2, tone: 1 });
+      });
 
       const cleared = yield* stack.deploy(inProject({ scoreType: "weighted" }));
       expect(cleared.projectScoreId).toBe(score.projectScoreId);
       expect(cleared.categories).toBeUndefined();
-      expect((yield* getScore(score.projectScoreId)).categories ?? {}).toEqual({});
+      yield* eventually(getScore(score.projectScoreId), (observed) => {
+        expect(observed.categories ?? {}).toEqual({});
+      });
 
       yield* stack.destroy();
       yield* expectScoreGone(score.projectScoreId);
@@ -140,7 +147,9 @@ test.provider(
       const first = yield* stack.deploy(program("A"));
       const moved = yield* stack.deploy(program("B"));
       expect(moved.projectScoreId).not.toBe(first.projectScoreId);
-      expect((yield* getScore(moved.projectScoreId)).project_id).toBe(moved.projectId);
+      yield* eventually(getScore(moved.projectScoreId), (observed) => {
+        expect(observed.project_id).toBe(moved.projectId);
+      });
       yield* expectScoreGone(first.projectScoreId);
 
       yield* stack.destroy();
@@ -162,9 +171,9 @@ test.provider(
         inProject({ name: testName("alchemy-test-bt-score-b"), scoreType: "slider" }),
       );
       expect(renamed.projectScoreId).toBe(score.projectScoreId);
-      expect((yield* getScore(score.projectScoreId)).name).toBe(
-        testName("alchemy-test-bt-score-b"),
-      );
+      yield* eventually(getScore(score.projectScoreId), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-score-b"));
+      });
 
       yield* stack.destroy();
       yield* expectScoreGone(score.projectScoreId);
@@ -195,7 +204,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.projectScoreId).toBe(foreign.id);
-      expect((yield* getScore(foreign.id)).description).toBe("adopted");
+      yield* eventually(getScore(foreign.id), (observed) => {
+        expect(observed.description).toBe("adopted");
+      });
 
       yield* stack.destroy();
       yield* expectScoreGone(foreign.id);

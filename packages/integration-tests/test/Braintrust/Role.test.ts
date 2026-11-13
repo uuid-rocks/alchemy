@@ -9,7 +9,7 @@ import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -101,10 +101,11 @@ test.provider(
 
       const cleared = yield* stack.deploy(Braintrust.Role("Role", {}));
       expect(cleared.roleId).toBe(role.roleId);
-      const after = yield* getRole(role.roleId);
-      expect(after.description || undefined).toBeUndefined();
-      expect(after.member_permissions ?? []).toEqual([]);
-      expect(after.member_roles ?? []).toEqual([]);
+      yield* eventually(getRole(role.roleId), (after) => {
+        expect(after.description || undefined).toBeUndefined();
+        expect(after.member_permissions ?? []).toEqual([]);
+        expect(after.member_roles ?? []).toEqual([]);
+      });
 
       yield* stack.destroy();
       yield* expectRoleGone(role.roleId);
@@ -125,7 +126,9 @@ test.provider(
         Braintrust.Role("Role", { name: testName("alchemy-test-bt-role-b") }),
       );
       expect(renamed.roleId).toBe(role.roleId);
-      expect((yield* getRole(role.roleId)).name).toBe(testName("alchemy-test-bt-role-b"));
+      yield* eventually(getRole(role.roleId), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-role-b"));
+      });
 
       yield* stack.destroy();
       yield* expectRoleGone(role.roleId);
@@ -150,7 +153,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.roleId).toBe(foreign.id);
-      expect((yield* getRole(foreign.id)).description).toBe("adopted");
+      yield* eventually(getRole(foreign.id), (observed) => {
+        expect(observed.description).toBe("adopted");
+      });
 
       yield* stack.destroy();
       yield* expectRoleGone(foreign.id);

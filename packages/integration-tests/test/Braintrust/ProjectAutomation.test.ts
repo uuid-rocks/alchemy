@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -85,9 +85,10 @@ test.provider(
       const alert = yield* stack.deploy(inProject({ config: webhook }));
       expect(alert.projectAutomationId).toBe(automation.projectAutomationId);
       expect(alert.description).toBeUndefined();
-      const after = yield* getAutomation(automation.projectAutomationId);
-      expect(after.config).toEqual(webhook);
-      expect(after.description || undefined).toBeUndefined();
+      yield* eventually(getAutomation(automation.projectAutomationId), (after) => {
+        expect(after.config).toEqual(webhook);
+        expect(after.description || undefined).toBeUndefined();
+      });
 
       const replan = yield* stack.plan(inProject({ config: webhook }));
       expect(replan.resources.Automation.action).toBe("noop");
@@ -118,7 +119,9 @@ test.provider(
       const first = yield* stack.deploy(program("A"));
       const moved = yield* stack.deploy(program("B"));
       expect(moved.projectAutomationId).not.toBe(first.projectAutomationId);
-      expect((yield* getAutomation(moved.projectAutomationId)).project_id).toBe(moved.projectId);
+      yield* eventually(getAutomation(moved.projectAutomationId), (observed) => {
+        expect(observed.project_id).toBe(moved.projectId);
+      });
       yield* expectAutomationGone(first.projectAutomationId);
 
       yield* stack.destroy();
@@ -140,9 +143,9 @@ test.provider(
         inProject({ name: testName("alchemy-test-bt-automation-b"), config: retention(30) }),
       );
       expect(renamed.projectAutomationId).toBe(automation.projectAutomationId);
-      expect((yield* getAutomation(automation.projectAutomationId)).name).toBe(
-        testName("alchemy-test-bt-automation-b"),
-      );
+      yield* eventually(getAutomation(automation.projectAutomationId), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-automation-b"));
+      });
 
       yield* stack.destroy();
       yield* expectAutomationGone(automation.projectAutomationId);
@@ -172,7 +175,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.projectAutomationId).toBe(foreign.id);
-      expect((yield* getAutomation(foreign.id)).config).toEqual(retention(14));
+      yield* eventually(getAutomation(foreign.id), (observed) => {
+        expect(observed.config).toEqual(retention(14));
+      });
 
       yield* stack.destroy();
       yield* expectAutomationGone(foreign.id);

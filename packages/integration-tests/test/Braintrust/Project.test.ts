@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -50,10 +50,11 @@ test.provider(
         }),
       );
       expect(updated.projectId).toBe(project.projectId);
-      const observed = yield* getProject(project.projectId);
-      expect(observed.description).toBe("second");
-      expect(observed.settings?.comparison_key).toBe("metadata.case_id");
-      expect(observed.settings?.blind_reviews).toBe(true);
+      yield* eventually(getProject(project.projectId), (observed) => {
+        expect(observed.description).toBe("second");
+        expect(observed.settings?.comparison_key).toBe("metadata.case_id");
+        expect(observed.settings?.blind_reviews).toBe(true);
+      });
 
       // Removing the description and a setting clears them; the rest stays.
       const cleared = yield* stack.deploy(
@@ -61,10 +62,11 @@ test.provider(
       );
       expect(cleared.projectId).toBe(project.projectId);
       expect(cleared.description).toBeUndefined();
-      const after = yield* getProject(project.projectId);
-      expect(after.description ?? undefined).toBeUndefined();
-      expect(after.settings?.comparison_key).toBe("metadata.case_id");
-      expect(after.settings?.blind_reviews ?? undefined).toBeUndefined();
+      yield* eventually(getProject(project.projectId), (after) => {
+        expect(after.description ?? undefined).toBeUndefined();
+        expect(after.settings?.comparison_key).toBe("metadata.case_id");
+        expect(after.settings?.blind_reviews ?? undefined).toBeUndefined();
+      });
 
       yield* stack.destroy();
       yield* expectProjectGone(project.projectId);
@@ -86,7 +88,9 @@ test.provider(
       const renamed = yield* stack.deploy(Braintrust.Project("Named", { name: second }));
       expect(renamed.projectId).toBe(project.projectId);
       expect(renamed.name).toBe(second);
-      expect((yield* getProject(project.projectId)).name).toBe(second);
+      yield* eventually(getProject(project.projectId), (observed) => {
+        expect(observed.name).toBe(second);
+      });
       yield* expectFound(Braintrust.Project.lookup({ name: second }), renamed);
 
       yield* stack.destroy();
@@ -114,7 +118,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.projectId).toBe(foreign.id);
-      expect((yield* getProject(foreign.id)).description).toBe("adopted");
+      yield* eventually(getProject(foreign.id), (observed) => {
+        expect(observed.description).toBe("adopted");
+      });
 
       yield* stack.destroy();
       yield* expectProjectGone(foreign.id);

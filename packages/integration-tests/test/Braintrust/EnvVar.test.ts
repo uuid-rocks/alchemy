@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -100,10 +100,11 @@ test.provider(
         inProject({ name: "ALCHEMY_TEST_KEY_2", value: Redacted.make(second) }),
       );
       expect(cleared.envVarId).toBe(envVar.envVarId);
-      const after = yield* getEnvVar(envVar.envVarId);
-      expect(after.name).toBe("ALCHEMY_TEST_KEY_2");
-      expect(after.metadata ?? undefined).toBeUndefined();
-      expect(after.secret_type ?? undefined).toBeUndefined();
+      yield* eventually(getEnvVar(envVar.envVarId), (after) => {
+        expect(after.name).toBe("ALCHEMY_TEST_KEY_2");
+        expect(after.metadata ?? undefined).toBeUndefined();
+        expect(after.secret_type ?? undefined).toBeUndefined();
+      });
       yield* expectStoredValue(envVar.envVarId, second);
 
       yield* stack.destroy();
@@ -165,7 +166,9 @@ test.provider(
       const moved = yield* stack.deploy(program("B"));
       expect(moved.envVarId).not.toBe(before.envVarId);
       expect(moved.objectId).not.toBe(before.objectId);
-      expect((yield* getEnvVar(moved.envVarId)).object_id).toBe(moved.objectId);
+      yield* eventually(getEnvVar(moved.envVarId), (observed) => {
+        expect(observed.object_id).toBe(moved.objectId);
+      });
       yield* expectStoredValue(moved.envVarId, first);
       yield* expectEnvVarGone(before.envVarId);
 
@@ -186,7 +189,9 @@ test.provider(
       );
       yield* braintrust.deleteProject({ project_id: envVar.objectId });
       // Braintrust keeps the variable of a deleted project.
-      expect((yield* getEnvVar(envVar.envVarId)).id).toBe(envVar.envVarId);
+      yield* eventually(getEnvVar(envVar.envVarId), (observed) => {
+        expect(observed.id).toBe(envVar.envVarId);
+      });
 
       yield* stack.destroy();
       yield* expectEnvVarGone(envVar.envVarId);

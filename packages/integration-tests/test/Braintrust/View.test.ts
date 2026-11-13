@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -82,17 +82,20 @@ test.provider(
       // The page a view applies to changes in place.
       const retyped = yield* stack.deploy(inProject({ ...first, viewType: "experiments" }));
       expect(retyped.viewId).toBe(view.viewId);
-      expect((yield* getView(view)).view_type).toBe("experiments");
+      yield* eventually(getView(view), (observed) => {
+        expect(observed.view_type).toBe("experiments");
+      });
 
       const cleared = yield* stack.deploy(inProject({ viewType: "experiments" }));
       expect(cleared.viewId).toBe(view.viewId);
       expect(cleared.description).toBeUndefined();
       expect(cleared.viewData).toBeUndefined();
       expect(cleared.options).toBeUndefined();
-      const after = yield* getView(view);
-      expect(after.description || undefined).toBeUndefined();
-      expect(after.view_data ?? {}).toEqual({});
-      expect(after.options ?? {}).toEqual({});
+      yield* eventually(getView(view), (after) => {
+        expect(after.description || undefined).toBeUndefined();
+        expect(after.view_data ?? {}).toEqual({});
+        expect(after.options ?? {}).toEqual({});
+      });
 
       const replan = yield* stack.plan(inProject({ viewType: "experiments" }));
       expect(replan.resources.View.action).toBe("noop");
@@ -124,7 +127,9 @@ test.provider(
       const first = yield* stack.deploy(program("A"));
       const moved = yield* stack.deploy(program("B"));
       expect(moved.viewId).not.toBe(first.viewId);
-      expect((yield* getView(moved)).object_id).toBe(moved.objectId);
+      yield* eventually(getView(moved), (observed) => {
+        expect(observed.object_id).toBe(moved.objectId);
+      });
       yield* expectViewGone(first);
 
       yield* stack.destroy();
@@ -146,7 +151,9 @@ test.provider(
         inProject({ name: testName("alchemy-test-bt-view-b"), viewType: "logs" }),
       );
       expect(renamed.viewId).toBe(view.viewId);
-      expect((yield* getView(view)).name).toBe(testName("alchemy-test-bt-view-b"));
+      yield* eventually(getView(view), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-view-b"));
+      });
 
       yield* stack.destroy();
       yield* expectViewGone(view);
@@ -178,7 +185,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.viewId).toBe(foreign.id);
-      expect((yield* getView(adopted)).description).toBe("adopted");
+      yield* eventually(getView(adopted), (observed) => {
+        expect(observed.description).toBe("adopted");
+      });
 
       yield* stack.destroy();
       yield* expectViewGone(adopted);

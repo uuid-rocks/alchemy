@@ -36,3 +36,31 @@ export const expectFound = Effect.fn(function* (
   const node = plan.resources["lookup-probe"] as { props: { description: string } };
   expect(JSON.parse(node.props.description)).toEqual(JSON.parse(JSON.stringify(expected)));
 });
+
+/**
+ * Read until `check` passes, up to 10 times 500 ms apart, and return the
+ * last read. A Braintrust read can return an object as it was before the
+ * latest write: in CI, a GET 200 ms after the PATCH that cleared a project's
+ * description still returned the old one, though the PATCH response had it
+ * cleared. The last attempt's assertion error is the test's failure.
+ */
+export const eventually = <A, E, R>(read: Effect.Effect<A, E, R>, check: (value: A) => void) =>
+  Effect.gen(function* () {
+    for (let attempt = 1; attempt < 10; attempt++) {
+      const value = yield* read;
+      if (passes(check, value)) return value;
+      yield* Effect.sleep("500 millis");
+    }
+    const value = yield* read;
+    check(value);
+    return value;
+  });
+
+const passes = <A>(check: (value: A) => void, value: A) => {
+  try {
+    check(value);
+    return true;
+  } catch {
+    return false;
+  }
+};

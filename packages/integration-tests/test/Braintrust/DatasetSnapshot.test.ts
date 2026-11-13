@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -65,14 +65,17 @@ test.provider(
 
       const updated = yield* stack.deploy(inDataset({ xactId: V1, description: "second" }));
       expect(updated.datasetSnapshotId).toBe(snapshot.datasetSnapshotId);
-      const observed = yield* getSnapshot(snapshot.datasetSnapshotId);
-      expect(observed.description).toBe("second");
-      expect(observed.name).toBe(snapshot.name);
-      expect(observed.xact_id).toBe(V1);
+      yield* eventually(getSnapshot(snapshot.datasetSnapshotId), (observed) => {
+        expect(observed.description).toBe("second");
+        expect(observed.name).toBe(snapshot.name);
+        expect(observed.xact_id).toBe(V1);
+      });
 
       const cleared = yield* stack.deploy(inDataset({ xactId: V1 }));
       expect(cleared.datasetSnapshotId).toBe(snapshot.datasetSnapshotId);
-      expect((yield* getSnapshot(snapshot.datasetSnapshotId)).description).toBeNull();
+      yield* eventually(getSnapshot(snapshot.datasetSnapshotId), (observed) => {
+        expect(observed.description).toBeNull();
+      });
 
       yield* stack.destroy();
       yield* expectSnapshotGone(snapshot.datasetSnapshotId);
@@ -90,9 +93,10 @@ test.provider(
       const first = yield* stack.deploy(inDataset({ name, xactId: V1 }));
       const repinned = yield* stack.deploy(inDataset({ name, xactId: V2 }));
       expect(repinned.datasetSnapshotId).not.toBe(first.datasetSnapshotId);
-      const observed = yield* getSnapshot(repinned.datasetSnapshotId);
-      expect(observed.name).toBe(name);
-      expect(observed.xact_id).toBe(V2);
+      yield* eventually(getSnapshot(repinned.datasetSnapshotId), (observed) => {
+        expect(observed.name).toBe(name);
+        expect(observed.xact_id).toBe(V2);
+      });
       yield* expectSnapshotGone(first.datasetSnapshotId);
 
       yield* stack.destroy();
@@ -122,7 +126,9 @@ test.provider(
       const first = yield* stack.deploy(program("A"));
       const moved = yield* stack.deploy(program("B"));
       expect(moved.datasetSnapshotId).not.toBe(first.datasetSnapshotId);
-      expect((yield* getSnapshot(moved.datasetSnapshotId)).dataset_id).toBe(moved.datasetId);
+      yield* eventually(getSnapshot(moved.datasetSnapshotId), (observed) => {
+        expect(observed.dataset_id).toBe(moved.datasetId);
+      });
       yield* expectSnapshotGone(first.datasetSnapshotId);
 
       yield* stack.destroy();
@@ -144,9 +150,9 @@ test.provider(
         inDataset({ name: testName("alchemy-test-bt-snapshot-b"), xactId: V1 }),
       );
       expect(renamed.datasetSnapshotId).toBe(snapshot.datasetSnapshotId);
-      expect((yield* getSnapshot(snapshot.datasetSnapshotId)).name).toBe(
-        testName("alchemy-test-bt-snapshot-b"),
-      );
+      yield* eventually(getSnapshot(snapshot.datasetSnapshotId), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-snapshot-b"));
+      });
 
       yield* stack.destroy();
       yield* expectSnapshotGone(snapshot.datasetSnapshotId);
@@ -182,7 +188,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.datasetSnapshotId).toBe(foreign.id);
-      expect((yield* getSnapshot(foreign.id)).description).toBe("adopted");
+      yield* eventually(getSnapshot(foreign.id), (observed) => {
+        expect(observed.description).toBe("adopted");
+      });
 
       yield* stack.destroy();
       yield* expectSnapshotGone(foreign.id);

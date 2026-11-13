@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -95,29 +95,31 @@ test.provider(
       expect(updated.experimentId).toBe(experiment.experimentId);
       expect(updated.name).toBe(name);
       expect(updated.metadata).toEqual({ model: "large", params: { temperature: 0.5 } });
-      const observed = yield* getExperiment(experiment.experimentId);
-      expect(observed.name).toBe(name);
-      expect(observed.description).toBe("second");
-      expect(observed.public).toBe(true);
-      expect(observed.tags).toEqual(["b", "c"]);
-      // A removed key stays as null: Braintrust merges experiment metadata.
-      expect(observed.metadata).toEqual({
-        model: "large",
-        params: { temperature: 0.5, top_p: null },
+      yield* eventually(getExperiment(experiment.experimentId), (observed) => {
+        expect(observed.name).toBe(name);
+        expect(observed.description).toBe("second");
+        expect(observed.public).toBe(true);
+        expect(observed.tags).toEqual(["b", "c"]);
+        // A removed key stays as null: Braintrust merges experiment metadata.
+        expect(observed.metadata).toEqual({
+          model: "large",
+          params: { temperature: 0.5, top_p: null },
+        });
+        expect(observed.base_exp_id).toBe(baseline.experimentId);
+        expect(observed.dataset_id).toBe(second.datasetId);
       });
-      expect(observed.base_exp_id).toBe(baseline.experimentId);
-      expect(observed.dataset_id).toBe(second.datasetId);
 
       const { experiment: cleared } = yield* stack.deploy(
         inProject(({ second }) => ({ name, datasetId: second })),
       );
       expect(cleared.experimentId).toBe(experiment.experimentId);
       expect(cleared.metadata).toBeUndefined();
-      const after = yield* getExperiment(experiment.experimentId);
-      expect(after.description || undefined).toBeUndefined();
-      expect(after.public).toBe(false);
-      expect(after.tags ?? []).toEqual([]);
-      expect(after.base_exp_id ?? undefined).toBeUndefined();
+      yield* eventually(getExperiment(experiment.experimentId), (after) => {
+        expect(after.description || undefined).toBeUndefined();
+        expect(after.public).toBe(false);
+        expect(after.tags ?? []).toEqual([]);
+        expect(after.base_exp_id ?? undefined).toBeUndefined();
+      });
 
       yield* stack.destroy();
       yield* expectExperimentGone(experiment.experimentId);
@@ -153,7 +155,9 @@ test.provider(
 
       const moved = yield* stack.deploy(program("B", false));
       expect(moved.experimentId).not.toBe(unlinked.experimentId);
-      expect((yield* getExperiment(moved.experimentId)).project_id).toBe(moved.projectId);
+      yield* eventually(getExperiment(moved.experimentId), (observed) => {
+        expect(observed.project_id).toBe(moved.projectId);
+      });
       yield* expectExperimentGone(unlinked.experimentId);
 
       yield* stack.destroy();
@@ -191,7 +195,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.experimentId).toBe(foreign.id);
-      expect((yield* getExperiment(foreign.id)).description).toBe("adopted");
+      yield* eventually(getExperiment(foreign.id), (observed) => {
+        expect(observed.description).toBe("adopted");
+      });
 
       yield* stack.destroy();
       yield* expectExperimentGone(foreign.id);

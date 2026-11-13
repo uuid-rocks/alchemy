@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -53,13 +53,15 @@ test.provider(
         Braintrust.ProjectGroup("ProjectGroup", { description: "second" }),
       );
       expect(updated.projectGroupId).toBe(group.projectGroupId);
-      expect((yield* getProjectGroup(group.projectGroupId)).description).toBe("second");
+      yield* eventually(getProjectGroup(group.projectGroupId), (observed) => {
+        expect(observed.description).toBe("second");
+      });
 
       const cleared = yield* stack.deploy(Braintrust.ProjectGroup("ProjectGroup", {}));
       expect(cleared.projectGroupId).toBe(group.projectGroupId);
-      expect((yield* getProjectGroup(group.projectGroupId)).description || undefined).toBe(
-        undefined,
-      );
+      yield* eventually(getProjectGroup(group.projectGroupId), (observed) => {
+        expect(observed.description || undefined).toBe(undefined);
+      });
 
       yield* stack.destroy();
       yield* expectProjectGroupGone(group.projectGroupId);
@@ -99,9 +101,9 @@ test.provider(
       yield* stack.deploy(program(["B"], "kept"));
       expect(yield* membersOf(first.a)).toEqual([]);
       expect(yield* membersOf(first.b)).toEqual([first.projectId]);
-      expect((yield* braintrust.getProject({ project_id: first.projectId })).description).toBe(
-        "kept",
-      );
+      yield* eventually(braintrust.getProject({ project_id: first.projectId }), (observed) => {
+        expect(observed.description).toBe("kept");
+      });
 
       yield* stack.deploy(program([], "kept"));
       expect(yield* membersOf(first.a)).toEqual([]);
@@ -156,9 +158,9 @@ test.provider(
         Braintrust.ProjectGroup("ProjectGroup", { name: testName("alchemy-test-bt-pg-b") }),
       );
       expect(renamed.projectGroupId).toBe(group.projectGroupId);
-      expect((yield* getProjectGroup(group.projectGroupId)).name).toBe(
-        testName("alchemy-test-bt-pg-b"),
-      );
+      yield* eventually(getProjectGroup(group.projectGroupId), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-pg-b"));
+      });
 
       yield* stack.destroy();
       yield* expectProjectGroupGone(group.projectGroupId);
@@ -185,7 +187,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.projectGroupId).toBe(foreign.id);
-      expect((yield* getProjectGroup(foreign.id)).description).toBe("adopted");
+      yield* eventually(getProjectGroup(foreign.id), (observed) => {
+        expect(observed.description).toBe("adopted");
+      });
 
       yield* stack.destroy();
       yield* expectProjectGroupGone(foreign.id);

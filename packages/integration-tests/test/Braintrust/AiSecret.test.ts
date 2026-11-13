@@ -9,7 +9,7 @@ import * as Redacted from "effect/Redacted";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -84,9 +84,10 @@ test.provider(
         Braintrust.AiSecret("AiSecret", { secret: Redacted.make(second) }),
       );
       expect(cleared.aiSecretId).toBe(secret.aiSecretId);
-      const after = yield* getAiSecret(secret.aiSecretId);
-      expect(after.type ?? undefined).toBeUndefined();
-      expect(after.metadata ?? undefined).toBeUndefined();
+      yield* eventually(getAiSecret(secret.aiSecretId), (after) => {
+        expect(after.type ?? undefined).toBeUndefined();
+        expect(after.metadata ?? undefined).toBeUndefined();
+      });
 
       yield* stack.destroy();
       yield* expectAiSecretGone(secret.aiSecretId);
@@ -115,10 +116,11 @@ test.provider(
       const repaired = yield* Drift.repair(target).pipe(Effect.provide(stack.state));
       expect(repaired.resources.AiSecret?.action).toBe("repaired");
       // The key is write-only; a newer write time shows Alchemy wrote it again.
-      const after = yield* getAiSecret(secret.aiSecretId);
-      expect(Date.parse(after.secret_updated_at ?? "")).toBeGreaterThan(
-        Date.parse(outside.secret_updated_at ?? ""),
-      );
+      yield* eventually(getAiSecret(secret.aiSecretId), (after) => {
+        expect(Date.parse(after.secret_updated_at ?? "")).toBeGreaterThan(
+          Date.parse(outside.secret_updated_at ?? ""),
+        );
+      });
 
       yield* stack.destroy();
       yield* expectAiSecretGone(secret.aiSecretId);
@@ -137,7 +139,9 @@ test.provider(
       const secret = yield* stack.deploy(app(testName("alchemy-test-bt-ai-a")));
       const renamed = yield* stack.deploy(app(testName("alchemy-test-bt-ai-b")));
       expect(renamed.aiSecretId).toBe(secret.aiSecretId);
-      expect((yield* getAiSecret(secret.aiSecretId)).name).toBe(testName("alchemy-test-bt-ai-b"));
+      yield* eventually(getAiSecret(secret.aiSecretId), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-ai-b"));
+      });
 
       yield* stack.destroy();
       yield* expectAiSecretGone(secret.aiSecretId);

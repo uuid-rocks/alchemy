@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -70,9 +70,10 @@ test.provider(
       expect(cleared.spanIframeId).toBe(iframe.spanIframeId);
       expect(cleared.description).toBeUndefined();
       expect(cleared.postMessage).toBe(false);
-      const after = yield* getIframe(iframe.spanIframeId);
-      expect(after.description || undefined).toBeUndefined();
-      expect(after.post_message ?? false).toBe(false);
+      yield* eventually(getIframe(iframe.spanIframeId), (after) => {
+        expect(after.description || undefined).toBeUndefined();
+        expect(after.post_message ?? false).toBe(false);
+      });
 
       yield* stack.destroy();
       yield* expectIframeGone(iframe.spanIframeId);
@@ -100,7 +101,9 @@ test.provider(
       const first = yield* stack.deploy(program("A"));
       const moved = yield* stack.deploy(program("B"));
       expect(moved.spanIframeId).not.toBe(first.spanIframeId);
-      expect((yield* getIframe(moved.spanIframeId)).project_id).toBe(moved.projectId);
+      yield* eventually(getIframe(moved.spanIframeId), (observed) => {
+        expect(observed.project_id).toBe(moved.projectId);
+      });
       yield* expectIframeGone(first.spanIframeId);
 
       yield* stack.destroy();
@@ -123,9 +126,9 @@ test.provider(
         inProject({ name: testName("alchemy-test-bt-iframe-b"), url }),
       );
       expect(renamed.spanIframeId).toBe(iframe.spanIframeId);
-      expect((yield* getIframe(iframe.spanIframeId)).name).toBe(
-        testName("alchemy-test-bt-iframe-b"),
-      );
+      yield* eventually(getIframe(iframe.spanIframeId), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-iframe-b"));
+      });
 
       yield* stack.destroy();
       yield* expectIframeGone(iframe.spanIframeId);
@@ -156,7 +159,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.spanIframeId).toBe(foreign.id);
-      expect((yield* getIframe(foreign.id)).url).toBe("https://example.com/adopted");
+      yield* eventually(getIframe(foreign.id), (observed) => {
+        expect(observed.url).toBe("https://example.com/adopted");
+      });
 
       yield* stack.destroy();
       yield* expectIframeGone(foreign.id);

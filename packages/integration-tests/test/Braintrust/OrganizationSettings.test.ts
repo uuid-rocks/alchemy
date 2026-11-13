@@ -5,7 +5,7 @@ import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -61,12 +61,15 @@ test.provider(
       const unmanaged = yield* stack.deploy(Braintrust.OrganizationSettings("Settings", {}));
       expect(unmanaged.imageRenderingMode).toBe(target);
       expect(unmanaged.original.imageRenderingMode).toBe(beforeMode);
-      expect((yield* currentOrg).image_rendering_mode).toBe(target);
+      yield* eventually(currentOrg, (observed) => {
+        expect(observed.image_rendering_mode).toBe(target);
+      });
 
       yield* stack.destroy();
-      const after = yield* currentOrg;
-      expect(after.image_rendering_mode ?? "auto").toBe(beforeMode);
-      expect(snapshot(after)).toEqual(snapshot(before));
+      yield* eventually(currentOrg, (after) => {
+        expect(after.image_rendering_mode ?? "auto").toBe(beforeMode);
+        expect(snapshot(after)).toEqual(snapshot(before));
+      });
     }),
   { tags, exclusive: "braintrust:org-settings", timeout: 120_000 },
 );

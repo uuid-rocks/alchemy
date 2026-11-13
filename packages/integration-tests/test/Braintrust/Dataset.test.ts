@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -60,18 +60,20 @@ test.provider(
         inProject({ description: "second", tags: ["c"], metadata: { team: "support" } }),
       );
       expect(updated.datasetId).toBe(dataset.datasetId);
-      const observed = yield* getDataset(dataset.datasetId);
-      expect(observed.description).toBe("second");
-      expect(observed.tags).toEqual(["c"]);
-      // Metadata is replaced as a whole, not merged.
-      expect(observed.metadata).toEqual({ team: "support" });
+      yield* eventually(getDataset(dataset.datasetId), (observed) => {
+        expect(observed.description).toBe("second");
+        expect(observed.tags).toEqual(["c"]);
+        // Metadata is replaced as a whole, not merged.
+        expect(observed.metadata).toEqual({ team: "support" });
+      });
 
       const cleared = yield* stack.deploy(inProject({}));
       expect(cleared.datasetId).toBe(dataset.datasetId);
-      const after = yield* getDataset(dataset.datasetId);
-      expect(after.description ?? undefined).toBeUndefined();
-      expect(after.tags ?? []).toEqual([]);
-      expect(after.metadata ?? undefined).toBeUndefined();
+      yield* eventually(getDataset(dataset.datasetId), (after) => {
+        expect(after.description ?? undefined).toBeUndefined();
+        expect(after.tags ?? []).toEqual([]);
+        expect(after.metadata ?? undefined).toBeUndefined();
+      });
 
       yield* stack.destroy();
       yield* expectDatasetGone(dataset.datasetId);
@@ -99,7 +101,9 @@ test.provider(
       const moved = yield* stack.deploy(program("B"));
       expect(moved.datasetId).not.toBe(first.datasetId);
       expect(moved.projectId).not.toBe(first.projectId);
-      expect((yield* getDataset(moved.datasetId)).project_id).toBe(moved.projectId);
+      yield* eventually(getDataset(moved.datasetId), (observed) => {
+        expect(observed.project_id).toBe(moved.projectId);
+      });
       yield* expectDatasetGone(first.datasetId);
 
       yield* stack.destroy();
@@ -117,7 +121,9 @@ test.provider(
       const dataset = yield* stack.deploy(inProject({ name: testName("alchemy-test-bt-ds-a") }));
       const renamed = yield* stack.deploy(inProject({ name: testName("alchemy-test-bt-ds-b") }));
       expect(renamed.datasetId).toBe(dataset.datasetId);
-      expect((yield* getDataset(dataset.datasetId)).name).toBe(testName("alchemy-test-bt-ds-b"));
+      yield* eventually(getDataset(dataset.datasetId), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-ds-b"));
+      });
 
       yield* stack.destroy();
       yield* expectDatasetGone(dataset.datasetId);
@@ -144,7 +150,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.datasetId).toBe(foreign.id);
-      expect((yield* getDataset(foreign.id)).description).toBe("adopted");
+      yield* eventually(getDataset(foreign.id), (observed) => {
+        expect(observed.description).toBe("adopted");
+      });
 
       yield* stack.destroy();
       yield* expectDatasetGone(foreign.id);

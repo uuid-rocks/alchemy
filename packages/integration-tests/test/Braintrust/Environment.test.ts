@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -51,17 +51,19 @@ test.provider(
         Braintrust.Environment("Environment", { name: "Staging", description: "second" }),
       );
       expect(updated.environmentId).toBe(environment.environmentId);
-      const observed = yield* getEnvironment(environment.environmentId);
-      expect(observed.description).toBe("second");
-      expect(observed.name).toBe("Staging");
-      expect(observed.slug).toBe(environment.slug);
+      yield* eventually(getEnvironment(environment.environmentId), (observed) => {
+        expect(observed.description).toBe("second");
+        expect(observed.name).toBe("Staging");
+        expect(observed.slug).toBe(environment.slug);
+      });
 
       // Without a name, the name falls back to the slug.
       const cleared = yield* stack.deploy(Braintrust.Environment("Environment", {}));
       expect(cleared.environmentId).toBe(environment.environmentId);
-      const after = yield* getEnvironment(environment.environmentId);
-      expect(after.name).toBe(environment.slug);
-      expect(after.description ?? undefined).toBeUndefined();
+      yield* eventually(getEnvironment(environment.environmentId), (after) => {
+        expect(after.name).toBe(environment.slug);
+        expect(after.description ?? undefined).toBeUndefined();
+      });
 
       yield* stack.destroy();
       yield* expectEnvironmentGone(environment.environmentId);
@@ -82,9 +84,9 @@ test.provider(
         Braintrust.Environment("Environment", { slug: testName("alchemy-test-bt-env-b") }),
       );
       expect(renamed.environmentId).toBe(environment.environmentId);
-      expect((yield* getEnvironment(environment.environmentId)).slug).toBe(
-        testName("alchemy-test-bt-env-b"),
-      );
+      yield* eventually(getEnvironment(environment.environmentId), (observed) => {
+        expect(observed.slug).toBe(testName("alchemy-test-bt-env-b"));
+      });
 
       yield* stack.destroy();
       yield* expectEnvironmentGone(environment.environmentId);
@@ -110,9 +112,10 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.environmentId).toBe(foreign.id);
-      const observed = yield* getEnvironment(foreign.id);
-      expect(observed.description).toBe("adopted");
-      expect(observed.name).toBe(slug);
+      yield* eventually(getEnvironment(foreign.id), (observed) => {
+        expect(observed.description).toBe("adopted");
+        expect(observed.name).toBe(slug);
+      });
 
       yield* stack.destroy();
       yield* expectEnvironmentGone(foreign.id);

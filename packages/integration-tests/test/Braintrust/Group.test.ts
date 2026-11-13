@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -77,10 +77,11 @@ test.provider(
 
       const cleared = yield* stack.deploy(program({}));
       expect(cleared.group.groupId).toBe(group.groupId);
-      const after = yield* getGroup(group.groupId);
-      expect(after.description || undefined).toBeUndefined();
-      expect(after.member_users ?? []).toEqual([]);
-      expect(after.member_groups ?? []).toEqual([]);
+      yield* eventually(getGroup(group.groupId), (after) => {
+        expect(after.description || undefined).toBeUndefined();
+        expect(after.member_users ?? []).toEqual([]);
+        expect(after.member_groups ?? []).toEqual([]);
+      });
 
       yield* stack.destroy();
       yield* expectGroupGone(group.groupId);
@@ -102,7 +103,9 @@ test.provider(
         Braintrust.Group("Group", { name: testName("alchemy-test-bt-group-b") }),
       );
       expect(renamed.groupId).toBe(group.groupId);
-      expect((yield* getGroup(group.groupId)).name).toBe(testName("alchemy-test-bt-group-b"));
+      yield* eventually(getGroup(group.groupId), (observed) => {
+        expect(observed.name).toBe(testName("alchemy-test-bt-group-b"));
+      });
 
       yield* stack.destroy();
       yield* expectGroupGone(group.groupId);
@@ -127,7 +130,9 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.groupId).toBe(foreign.id);
-      expect((yield* getGroup(foreign.id)).description).toBe("adopted");
+      yield* eventually(getGroup(foreign.id), (observed) => {
+        expect(observed.description).toBe("adopted");
+      });
 
       yield* stack.destroy();
       yield* expectGroupGone(foreign.id);
