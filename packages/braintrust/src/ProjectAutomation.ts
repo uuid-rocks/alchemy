@@ -143,10 +143,9 @@ const getById = (projectAutomationId: string) =>
     .getProjectAutomation({ project_automation_id: projectAutomationId })
     .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.undefined));
 
-// The hosted API refuses the spec's `project_automation_name` filter, and
-// the generated request has no project filter, so match client-side.
+// The list has no project filter, so match the project client-side.
 const findByName = (projectId: string, name: string) =>
-  braintrust.listProjectAutomations.items({}).pipe(
+  braintrust.listProjectAutomations.items({ project_automation_name: name }).pipe(
     Stream.filter((automation) => automation.project_id === projectId && automation.name === name),
     Stream.runHead,
     Effect.map(Option.getOrUndefined),
