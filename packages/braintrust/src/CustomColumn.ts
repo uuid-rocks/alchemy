@@ -106,12 +106,6 @@ export interface CustomColumnLookup {
  * column.
  * :::
  *
- * :::note
- * Deleting a project leaves its custom columns behind: they no longer show
- * anywhere, but `alchemy unsafe nuke` can't list them. Destroy columns with
- * the stack that made them.
- * :::
- *
  * ### Creating a Custom Column
  * **Example:** Column on a project's logs
  * ```typescript
@@ -285,9 +279,9 @@ export const CustomColumnProvider = () =>
             .deleteColumn({ column_id: output.customColumnId })
             .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
         }),
-        // Columns can only be listed one table at a time, and they outlive
-        // their project, so there is no way to enumerate the ones Alchemy
-        // made. Destroying the owning stack deletes them.
+        // Columns can only be listed one table at a time, by a scope that
+        // includes the subtype and variant, so there is no way to enumerate
+        // the ones Alchemy made. Deleting their project hides them.
         list: Effect.fn(function* () {
           return [];
         }),

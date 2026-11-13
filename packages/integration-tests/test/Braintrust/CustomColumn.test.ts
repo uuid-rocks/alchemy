@@ -13,8 +13,9 @@ const { test } = Test.make({ providers: Braintrust.providers() });
 
 const tags = ["provider:braintrust", "provider:braintrust:custom-column", "live"];
 
-// Columns have no get by id; they are read from their table's list, which
-// keeps working after the project is deleted.
+// Columns have no get by id; they are read from their table's list. That
+// list refuses a deleted project, so each case checks deletion with the
+// project still deployed.
 const findColumn = (column: Braintrust.CustomColumnAttributes) =>
   braintrust
     .listColumns({
@@ -94,8 +95,9 @@ test.provider(
       expect(after.expr).toBe("metadata.provider");
       expect(after.name).toBe(column.name);
 
-      yield* stack.destroy();
+      yield* stack.deploy(Braintrust.Project("Project", {}));
       yield* expectColumnGone(column);
+      yield* stack.destroy();
     }),
   { tags, timeout: 120_000 },
 );
@@ -124,8 +126,9 @@ test.provider(
       expect((yield* getColumn(moved)).variant).toBe("experiment_list");
       yield* expectColumnGone(first);
 
-      yield* stack.destroy();
+      yield* stack.deploy(Braintrust.Project("Project", {}));
       yield* expectColumnGone(moved);
+      yield* stack.destroy();
     }),
   { tags, timeout: 120_000 },
 );
@@ -148,8 +151,9 @@ test.provider(
       expect(after.name).toBe(testName("alchemy-test-bt-column-b"));
       expect(after.expr).toBe(expr);
 
-      yield* stack.destroy();
+      yield* stack.deploy(Braintrust.Project("Project", {}));
       yield* expectColumnGone(column);
+      yield* stack.destroy();
     }),
   { tags, timeout: 120_000 },
 );
@@ -180,8 +184,9 @@ test.provider(
       expect(adopted.customColumnId).toBe(foreign.id);
       expect((yield* getColumn(adopted)).expr).toBe("metadata.adopted");
 
-      yield* stack.destroy();
+      yield* stack.deploy(Braintrust.Project("Project", {}));
       yield* expectColumnGone(adopted);
+      yield* stack.destroy();
     }),
   { tags, timeout: 120_000 },
 );
