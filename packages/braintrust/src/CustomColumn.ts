@@ -194,13 +194,18 @@ const listTable = (table: Table) =>
     })
     .pipe(Effect.map((response) => response.objects));
 
+// A table whose object is gone has no columns.
 const findById = (table: Table, customColumnId: string) =>
   listTable(table).pipe(
     Effect.map((columns) => columns.find((column) => column.id === customColumnId)),
+    Effect.catchTag("NotFoundOrForbidden", () => Effect.undefined),
   );
 
 const findByName = (table: Table, name: string) =>
-  listTable(table).pipe(Effect.map((columns) => columns.find((column) => column.name === name)));
+  listTable(table).pipe(
+    Effect.map((columns) => columns.find((column) => column.name === name)),
+    Effect.catchTag("NotFoundOrForbidden", () => Effect.undefined),
+  );
 
 export const CustomColumnProvider = () =>
   Provider.effect(
