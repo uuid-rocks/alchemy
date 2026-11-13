@@ -1013,6 +1013,13 @@ Observability as Stack resources — datasets, monitors, notifiers. The exporter
 - [Dashboards as code](https://alchemy.run/axiom/guides/dashboards) — Declare Axiom dashboards — charts, layout, filter bars, saved views, and deploy annotations — as alchemy resources next to the services they observe.
 - [Deploy markers & annotations](https://alchemy.run/axiom/guides/annotations) — Overlay deploys, incidents, and flag flips as vertical markers on Axiom charts — point or range annotations, scoped to one or more datasets, declared as alchemy resources.
 
+## Braintrust
+
+Braintrust evals as Stack resources: projects, datasets, experiments, prompts, functions, scores, automations, and roles, groups and ACLs.
+
+- [Braintrust](https://alchemy.run/braintrust) — Evals as resources — projects, datasets, experiments, prompts, scorers and access control declared next to the app they evaluate.
+- [Setup](https://alchemy.run/braintrust/setup) — Connect alchemy to your Braintrust organization with an API key or a service token.
+
 ## GitHub
 
 Repos, secrets, variables, and repository event sources as Stack resources; the CI/CD guides live under Guides and each cloud's tutorial part 5.
@@ -1213,4 +1220,4 @@ A domain-driven design framework: model commands, events, aggregates, views, pro
 
 Service-level API reference, generated from JSDoc on the source `.ts` files via `bun scripts/generate-api-reference.ts`. Each page groups resources and capabilities by service, with a heading per resource and examples extracted from source JSDoc.
 
-The service-level pages are indexed in [llms-full.txt](https://alchemy.run/llms-full.txt), which repeats this entire file plus one link per service. Warning: it is large (~256 KB) — only fetch it when you need to locate a specific resource's reference page.
+The service-level pages are indexed in [llms-full.txt](https://alchemy.run/llms-full.txt), which repeats this entire file plus one link per service. Warning: it is large (~259 KB) — only fetch it when you need to locate a specific resource's reference page.
