@@ -161,7 +161,8 @@ export const DatasetSnapshotProvider = () =>
             const snapshot = yield* getById(output.datasetSnapshotId);
             return snapshot ? toAttributes(snapshot) : undefined;
           }
-          const snapshot = yield* findByName(olds.datasetId, yield* braintrustName(id, olds.name));
+          const name = yield* braintrustName(id, olds.name);
+          const snapshot = yield* findByName(olds.datasetId, name);
           if (!snapshot) return undefined;
           const attrs = toAttributes(snapshot);
           // A generated name carries this instance's suffix, so it is ours.

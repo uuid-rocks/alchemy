@@ -184,7 +184,8 @@ export const ProjectScoreProvider = () =>
             const score = yield* getById(output.projectScoreId);
             return score ? toAttributes(score) : undefined;
           }
-          const score = yield* findByName(olds.projectId, yield* braintrustName(id, olds.name));
+          const name = yield* braintrustName(id, olds.name);
+          const score = yield* findByName(olds.projectId, name);
           if (!score) return undefined;
           const attrs = toAttributes(score);
           // A generated name carries this instance's suffix, so it is ours.

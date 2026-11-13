@@ -206,7 +206,8 @@ export const ViewProvider = () =>
             const view = yield* getById(output, output.viewId);
             return view ? toAttributes(view) : undefined;
           }
-          const view = yield* findByName(olds, olds.viewType, yield* braintrustName(id, olds.name));
+          const name = yield* braintrustName(id, olds.name);
+          const view = yield* findByName(olds, olds.viewType, name);
           if (!view) return undefined;
           const attrs = toAttributes(view);
           // A generated name carries this instance's suffix, so it is ours.

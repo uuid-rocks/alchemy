@@ -171,10 +171,8 @@ export const ProjectAutomationProvider = () =>
             const automation = yield* getById(output.projectAutomationId);
             return automation ? toAttributes(automation) : undefined;
           }
-          const automation = yield* findByName(
-            olds.projectId,
-            yield* braintrustName(id, olds.name),
-          );
+          const name = yield* braintrustName(id, olds.name);
+          const automation = yield* findByName(olds.projectId, name);
           if (!automation) return undefined;
           const attrs = toAttributes(automation);
           // A generated name carries this instance's suffix, so it is ours.

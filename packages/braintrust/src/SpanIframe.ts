@@ -155,7 +155,8 @@ export const SpanIframeProvider = () =>
             const iframe = yield* getById(output.spanIframeId);
             return iframe ? toAttributes(iframe) : undefined;
           }
-          const iframe = yield* findByName(olds.projectId, yield* braintrustName(id, olds.name));
+          const name = yield* braintrustName(id, olds.name);
+          const iframe = yield* findByName(olds.projectId, name);
           if (!iframe) return undefined;
           const attrs = toAttributes(iframe);
           // A generated name carries this instance's suffix, so it is ours.

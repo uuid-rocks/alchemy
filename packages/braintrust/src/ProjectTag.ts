@@ -145,7 +145,8 @@ export const ProjectTagProvider = () =>
             const tag = yield* getById(output.projectTagId);
             return tag ? toAttributes(tag) : undefined;
           }
-          const tag = yield* findByName(olds.projectId, yield* braintrustName(id, olds.name));
+          const name = yield* braintrustName(id, olds.name);
+          const tag = yield* findByName(olds.projectId, name);
           if (!tag) return undefined;
           const attrs = toAttributes(tag);
           // A generated name carries this instance's suffix, so it is ours.

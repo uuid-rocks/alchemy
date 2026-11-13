@@ -230,7 +230,8 @@ export const CustomColumnProvider = () =>
             const column = yield* findById(output, output.customColumnId);
             return column ? toAttributes(column) : undefined;
           }
-          const column = yield* findByName(olds, yield* braintrustName(id, olds.name));
+          const name = yield* braintrustName(id, olds.name);
+          const column = yield* findByName(olds, name);
           if (!column) return undefined;
           const attrs = toAttributes(column);
           // A generated name carries this instance's suffix, so it is ours.
