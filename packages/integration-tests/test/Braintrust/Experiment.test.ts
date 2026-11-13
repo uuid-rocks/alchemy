@@ -3,6 +3,7 @@ import { expect } from "@alchemy.run/test";
 import * as Test from "@alchemy.run/test/Alchemy";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import { adopt, OwnedBySomeoneElse } from "alchemy/AdoptPolicy";
+import type { Input, InputProps } from "alchemy/Input";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
@@ -29,10 +30,10 @@ const expectExperimentGone = (experimentId: string) =>
 /** A project with two datasets and a baseline, and the experiment under test. */
 const inProject = (
   props: (refs: {
-    first: string;
-    second: string;
-    baseline: string;
-  }) => Omit<Braintrust.ExperimentProps, "projectId">,
+    first: Input<string>;
+    second: Input<string>;
+    baseline: Input<string>;
+  }) => InputProps<Omit<Braintrust.ExperimentProps, "projectId">>,
 ) =>
   Effect.gen(function* () {
     const project = yield* Braintrust.Project("Project", {});
