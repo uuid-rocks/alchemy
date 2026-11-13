@@ -56,6 +56,12 @@ export interface ProjectProps {
    * are managed; removing one resets it to Braintrust's default.
    */
   settings?: ProjectSettings;
+  /**
+   * Ids of the project groups the project is in, e.g.
+   * `projectGroup.projectGroupId`. Once set, the project is removed from
+   * any group not listed. Left unset, memberships are not managed.
+   */
+  projectGroupIds?: string[];
 }
 
 export interface ProjectAttributes {
@@ -139,6 +145,15 @@ export interface ProjectLookup {
  * const experiment = yield* Braintrust.Experiment("Baseline", {
  *   projectId: project.projectId,
  *   datasetId: dataset.datasetId,
+ * });
+ * ```
+ *
+ * ### Grouping projects
+ * **Example:** Put the project in a project group
+ * ```typescript
+ * const team = yield* Braintrust.ProjectGroup("SupportTeam", {});
+ * const project = yield* Braintrust.Project("Support", {
+ *   projectGroupIds: [team.projectGroupId],
  * });
  * ```
  *
@@ -256,6 +271,34 @@ export const ProjectProvider = () =>
           if (Object.keys(update).length > 0) {
             yield* session.note(`Updating project ${name}...`);
             project = yield* braintrust.updateProject({ project_id: project.id, ...update });
+          }
+
+          // Project groups — membership is stored on each group, so observe
+          // every group the project is in. Untouched until the props first
+          // set it, so memberships made in the UI survive.
+          if (news.projectGroupIds !== undefined || olds?.projectGroupIds !== undefined) {
+            const projectId = project.id;
+            const desired = news.projectGroupIds ?? [];
+            const groups = yield* Stream.runCollect(braintrust.listProjectGroups.items({}));
+            const observed = groups
+              .filter((group) => !group.deleted_at && group.member_projects.includes(projectId))
+              .map((group) => group.id);
+            for (const groupId of desired.filter((g) => !observed.includes(g))) {
+              yield* session.note(`Adding project ${name} to project group ${groupId}...`);
+              yield* braintrust.updateProjectGroup({
+                project_group_id: groupId,
+                add_member_projects: [projectId],
+              });
+            }
+            for (const groupId of observed.filter((g) => !desired.includes(g))) {
+              yield* session.note(`Removing project ${name} from project group ${groupId}...`);
+              yield* braintrust
+                .updateProjectGroup({
+                  project_group_id: groupId,
+                  remove_member_projects: [projectId],
+                })
+                .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            }
           }
 
           return toAttributes(project);
