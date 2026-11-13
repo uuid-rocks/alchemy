@@ -13,6 +13,7 @@ import { DatasetSnapshot, DatasetSnapshotProvider } from "./DatasetSnapshot.ts";
 import { Environment, EnvironmentProvider } from "./Environment.ts";
 import { EnvVar, EnvVarProvider } from "./EnvVar.ts";
 import { Experiment, ExperimentProvider } from "./Experiment.ts";
+import { Function, FunctionProvider } from "./Function.ts";
 import { Group, GroupProvider } from "./Group.ts";
 import { IngestKey, IngestKeyProvider } from "./IngestKey.ts";
 import { McpServer, McpServerProvider } from "./McpServer.ts";
@@ -23,6 +24,7 @@ import { ProjectAutomation, ProjectAutomationProvider } from "./ProjectAutomatio
 import { ProjectGroup, ProjectGroupProvider } from "./ProjectGroup.ts";
 import { ProjectScore, ProjectScoreProvider } from "./ProjectScore.ts";
 import { ProjectTag, ProjectTagProvider } from "./ProjectTag.ts";
+import { Prompt, PromptProvider } from "./Prompt.ts";
 import { Role, RoleProvider } from "./Role.ts";
 import { ServiceAccount, ServiceAccountProvider } from "./ServiceAccount.ts";
 import { ServiceToken, ServiceTokenProvider } from "./ServiceToken.ts";
@@ -51,56 +53,60 @@ export const providers = () =>
   Layer.effect(
     Providers,
     Provider.collection([
+      Acl,
       AiSecret,
+      CustomColumn,
       Dataset,
+      DatasetSnapshot,
       Environment,
       EnvVar,
       Experiment,
+      Function,
+      Group,
       IngestKey,
       McpServer,
-      Project,
-      CustomColumn,
-      DatasetSnapshot,
-      ProjectAutomation,
-      ProjectScore,
-      ProjectTag,
-      SpanIframe,
-      View,
-      Acl,
-      Group,
       OrganizationMember,
       OrganizationSettings,
+      Project,
+      ProjectAutomation,
       ProjectGroup,
+      ProjectScore,
+      ProjectTag,
+      Prompt,
       Role,
       ServiceAccount,
       ServiceToken,
+      SpanIframe,
+      View,
     ]),
   ).pipe(
     Layer.provide(
       Layer.mergeAll(
+        AclProvider(),
         AiSecretProvider(),
+        CustomColumnProvider(),
         DatasetProvider(),
+        DatasetSnapshotProvider(),
         EnvironmentProvider(),
         EnvVarProvider(),
         ExperimentProvider(),
+        FunctionProvider(),
+        GroupProvider(),
         IngestKeyProvider(),
         McpServerProvider(),
-        ProjectProvider(),
-        CustomColumnProvider(),
-        DatasetSnapshotProvider(),
-        ProjectAutomationProvider(),
-        ProjectScoreProvider(),
-        ProjectTagProvider(),
-        SpanIframeProvider(),
-        ViewProvider(),
-        AclProvider(),
-        GroupProvider(),
         OrganizationMemberProvider(),
         OrganizationSettingsProvider(),
+        ProjectProvider(),
+        ProjectAutomationProvider(),
         ProjectGroupProvider(),
+        ProjectScoreProvider(),
+        ProjectTagProvider(),
+        PromptProvider(),
         RoleProvider(),
         ServiceAccountProvider(),
         ServiceTokenProvider(),
+        SpanIframeProvider(),
+        ViewProvider(),
       ),
     ),
     Layer.provideMerge(Credentials.fromAuthProvider()),
