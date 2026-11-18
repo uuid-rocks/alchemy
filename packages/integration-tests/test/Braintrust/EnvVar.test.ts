@@ -37,8 +37,9 @@ const expectEnvVarGone = (envVarId: string) =>
 const expectStoredValue = Effect.fn(function* (envVarId: string, value: string) {
   const { preview_secret } = yield* getEnvVar(envVarId);
   const preview = Redacted.isRedacted(preview_secret) ? Redacted.value(preview_secret) : "";
-  expect(preview.startsWith(value.slice(0, 5))).toBe(true);
-  expect(preview.endsWith(value.slice(-5))).toBe(true);
+  expect(preview.slice(0, 5)).toBe(value.slice(0, 5));
+  expect(preview.slice(-5)).toBe(value.slice(-5));
+  expect(preview).not.toContain(value);
 });
 
 const inProject = (props: InputProps<Omit<Braintrust.EnvVarProps, "objectType" | "objectId">>) =>
@@ -64,12 +65,16 @@ test.provider(
         secretType: "openai",
       };
       const envVar = yield* stack.deploy(inProject(props));
-      const created = yield* getEnvVar(envVar.envVarId);
-      expect(created.object_type).toBe("project");
-      expect(created.object_id).toBe(envVar.objectId);
-      expect(created.name).toBe("ALCHEMY_TEST_KEY");
-      expect(created.metadata).toEqual({ owner: "evals" });
-      expect(created.secret_type).toBe("openai");
+      expect(envVar.name).toBe("ALCHEMY_TEST_KEY");
+      expect(envVar.metadata).toEqual({ owner: "evals" });
+      expect(envVar.secretType).toBe("openai");
+      yield* eventually(getEnvVar(envVar.envVarId), (created) => {
+        expect(created.object_type).toBe("project");
+        expect(created.object_id).toBe(envVar.objectId);
+        expect(created.name).toBe("ALCHEMY_TEST_KEY");
+        expect(created.metadata).toEqual({ owner: "evals" });
+        expect(created.secret_type).toBe("openai");
+      });
       yield* expectStoredValue(envVar.envVarId, first);
       // Only the masked preview is an attribute, and it stays Redacted.
       expect(Redacted.isRedacted(envVar.previewSecret)).toBe(true);
@@ -91,9 +96,10 @@ test.provider(
       expect(rotated.envVarId).toBe(envVar.envVarId);
       expect(rotated.secretUpdatedAt).not.toBe(envVar.secretUpdatedAt);
       yield* expectStoredValue(envVar.envVarId, second);
-      const afterRotate = yield* getEnvVar(envVar.envVarId);
-      expect(afterRotate.metadata).toEqual({ owner: "evals" });
-      expect(afterRotate.secret_type).toBe("openai");
+      yield* eventually(getEnvVar(envVar.envVarId), (afterRotate) => {
+        expect(afterRotate.metadata).toEqual({ owner: "evals" });
+        expect(afterRotate.secret_type).toBe("openai");
+      });
 
       // Rename and clear metadata and the classification.
       const cleared = yield* stack.deploy(
@@ -223,6 +229,8 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.envVarId).toBe(foreign.id);
+      expect(adopted.name).toBe("ALCHEMY_TEST_FOREIGN");
+      expect(adopted.objectId).toBe(project.projectId);
       yield* expectStoredValue(foreign.id, first);
 
       yield* stack.destroy();

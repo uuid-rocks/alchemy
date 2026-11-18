@@ -49,11 +49,15 @@ test.provider(
 
       const full = program({ description: "first", withUser: true, withGroup: true });
       const { group, userId, innerId } = yield* stack.deploy(full);
-      const created = yield* getGroup(group.groupId);
-      expect(created.name).toBe(group.name);
-      expect(created.description).toBe("first");
-      expect(created.member_users).toEqual([userId]);
-      expect(created.member_groups).toEqual([innerId]);
+      expect(group.description).toBe("first");
+      expect(group.memberUserIds).toEqual([userId]);
+      expect(group.memberGroupIds).toEqual([innerId]);
+      yield* eventually(getGroup(group.groupId), (created) => {
+        expect(created.name).toBe(group.name);
+        expect(created.description).toBe("first");
+        expect(created.member_users).toEqual([userId]);
+        expect(created.member_groups).toEqual([innerId]);
+      });
       yield* expectFound(Braintrust.Group.lookup({ name: group.name }), group);
 
       const plan = yield* stack.plan(full);
@@ -64,16 +68,18 @@ test.provider(
         program({ description: "second", withUser: true, withGroup: true }),
       );
       expect(described.group.groupId).toBe(group.groupId);
-      const afterDescription = yield* getGroup(group.groupId);
-      expect(afterDescription.description).toBe("second");
-      expect(afterDescription.member_users).toEqual([userId]);
-      expect(afterDescription.member_groups).toEqual([innerId]);
+      yield* eventually(getGroup(group.groupId), (afterDescription) => {
+        expect(afterDescription.description).toBe("second");
+        expect(afterDescription.member_users).toEqual([userId]);
+        expect(afterDescription.member_groups).toEqual([innerId]);
+      });
 
       // Drop the user, keep the group.
       yield* stack.deploy(program({ description: "second", withGroup: true }));
-      const afterDrop = yield* getGroup(group.groupId);
-      expect(afterDrop.member_users ?? []).toEqual([]);
-      expect(afterDrop.member_groups).toEqual([innerId]);
+      yield* eventually(getGroup(group.groupId), (afterDrop) => {
+        expect(afterDrop.member_users ?? []).toEqual([]);
+        expect(afterDrop.member_groups).toEqual([innerId]);
+      });
 
       const cleared = yield* stack.deploy(program({}));
       expect(cleared.group.groupId).toBe(group.groupId);
@@ -130,6 +136,8 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.groupId).toBe(foreign.id);
+      expect(adopted.name).toBe(name);
+      expect(adopted.description).toBe("adopted");
       yield* eventually(getGroup(foreign.id), (observed) => {
         expect(observed.description).toBe("adopted");
       });

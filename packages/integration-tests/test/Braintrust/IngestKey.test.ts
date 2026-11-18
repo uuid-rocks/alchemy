@@ -10,7 +10,7 @@ import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { testName } from "../names.ts";
-import { expectFound } from "./lookup.ts";
+import { eventually, expectFound } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -20,6 +20,11 @@ const tags = ["provider:braintrust", "provider:braintrust:ingest-key", "live"];
 const listedIds = (projectId: string) =>
   Stream.runCollect(braintrust.listIngestKeys.items({ project_id: projectId })).pipe(
     Effect.map((keys) => keys.map((key) => key.id)),
+  );
+
+const listedKey = (projectId: string, ingestKeyId: string) =>
+  Stream.runCollect(braintrust.listIngestKeys.items({ project_id: projectId })).pipe(
+    Effect.map((keys) => keys.find((key) => key.id === ingestKeyId)),
   );
 
 const expectKeyGone = (projectId: string, ingestKeyId: string) =>
@@ -47,13 +52,18 @@ test.provider(
       yield* stack.destroy();
 
       const key = yield* stack.deploy(inProject({}));
-      expect(yield* listedIds(key.projectId)).toContain(key.ingestKeyId);
-      expect(key.previewName.startsWith("bt-ik-")).toBe(true);
+      expect(key.previewName).toMatch(/^bt-ik-/);
+      yield* eventually(listedKey(key.projectId, key.ingestKeyId), (listed) => {
+        expect(listed?.name).toBe(key.name);
+        expect(listed?.project_id).toBe(key.projectId);
+        expect(listed?.org_id).toBe(key.orgId);
+        expect(listed?.preview_name).toBe(key.previewName);
+      });
       // The URL carries the key, so it is only ever an opaque Redacted.
       expect(Redacted.isRedacted(key.url)).toBe(true);
       const url = key.url ? Redacted.value(key.url) : "";
-      expect(url.startsWith("https://")).toBe(true);
-      expect(JSON.stringify(key).includes(url)).toBe(false);
+      expect(url).toMatch(/^https:\/\//);
+      expect(JSON.stringify(key)).not.toContain(url);
       yield* expectFound(
         Braintrust.IngestKey.lookup({ projectId: key.projectId, ingestKeyId: key.ingestKeyId }),
         key,
@@ -100,7 +110,9 @@ test.provider(
       const moved = yield* stack.deploy(program("B", testName("alchemy-test-bt-ik-b")));
       expect(moved.ingestKeyId).not.toBe(renamed.ingestKeyId);
       expect(moved.projectId).not.toBe(renamed.projectId);
-      expect(yield* listedIds(moved.projectId)).toContain(moved.ingestKeyId);
+      yield* eventually(listedKey(moved.projectId, moved.ingestKeyId), (listed) => {
+        expect(listed?.name).toBe(testName("alchemy-test-bt-ik-b"));
+      });
       yield* expectKeyGone(renamed.projectId, renamed.ingestKeyId);
 
       // Delete it while its project stays: a deleted project hides what was in it.
@@ -129,6 +141,8 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.ingestKeyId).toBe(foreign.id);
+      expect(adopted.name).toBe(name);
+      expect(adopted.previewName).toBe(foreign.preview_name);
 
       // Delete it while its project stays: a deleted project hides what was in it.
       yield* stack.deploy(Braintrust.Project("Project", {}));
