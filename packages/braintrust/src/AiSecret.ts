@@ -102,12 +102,12 @@ export interface AiSecretLookup {
  *
  * **Example:** OpenAI-compatible endpoint with provider settings
  * ```typescript
- * import * as Redacted from "effect/Redacted";
+ * import * as Config from "effect/Config";
  *
  * const gateway = yield* Braintrust.AiSecret("Gateway", {
  *   type: "openai",
  *   metadata: { api_base: "https://llm.example.com/v1", models: ["gpt-4o"] },
- *   secret: Redacted.make(process.env.GATEWAY_KEY!),
+ *   secret: yield* Config.Redacted("GATEWAY_KEY"),
  * });
  * ```
  *

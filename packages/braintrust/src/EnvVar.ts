@@ -120,18 +120,18 @@ export interface EnvVarLookup {
  * ### Creating an environment variable
  * **Example:** Project-scoped secret
  * ```typescript
- * import * as Redacted from "effect/Redacted";
+ * import * as Config from "effect/Config";
  *
  * const project = yield* Braintrust.Project("Support", {});
  * const apiKey = yield* Braintrust.EnvVar("SearchApiKey", {
  *   objectType: "project",
  *   objectId: project.projectId,
  *   name: "SEARCH_API_KEY",
- *   value: Redacted.make(process.env.SEARCH_API_KEY!),
+ *   value: yield* Config.Redacted("SEARCH_API_KEY"),
  * });
  * ```
  *
- * **Example:** Organization-wide secret from Effect `Config`
+ * **Example:** Organization-wide secret
  * ```typescript
  * import * as Config from "effect/Config";
  *
