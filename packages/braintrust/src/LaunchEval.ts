@@ -33,6 +33,9 @@ export type LaunchEvalClient = (
  * Braintrust has no workload identity, so the token is created at deploy and
  * bound into the host as a secret; destroying the host revokes it.
  *
+ * Braintrust makes the host the Owner of each experiment it launches. The
+ * host keeps that after the binding is removed, until the host is destroyed.
+ *
  * `stream: true` isn't supported; responses are parsed as JSON.
  *
  * ### Running an eval
