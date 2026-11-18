@@ -1,5 +1,6 @@
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import { unownedUnlessPrevious } from "alchemy/AdoptPolicy";
+import { deepEqual } from "alchemy/Diff";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
@@ -9,9 +10,8 @@ import { braintrustName, isGeneratedName, unlessDeleted } from "./internal/Owner
 import type { Providers } from "./Providers.ts";
 
 /**
- * Project-wide settings Alchemy manages. Settings set in the Braintrust UI
- * that aren't listed here (span field order, alert destinations, user and
- * session id fields, remote eval sources) are kept as they are.
+ * Project-wide settings. Only the settings the props list are compared;
+ * any other setting, including ones made in the Braintrust UI, is kept.
  */
 export interface ProjectSettings {
   /**
@@ -22,11 +22,28 @@ export interface ProjectSettings {
   /** Id of the experiment to use as the default baseline for comparisons. */
   baselineExperimentId?: string;
   /**
+   * Order and layout (`full` or `two_column`) of the fields in the trace
+   * view.
+   */
+  spanFieldOrder?: braintrust.ProjectSettingsSpanFieldOrderList;
+  /** Remote eval sources (`url`, optional `name` and `description`) the playground can run. */
+  remoteEvalSources?: braintrust.ProjectSettingsRemoteEvalSourcesList;
+  /**
    * Disable real-time queries for this project. This can improve query
    * performance for high-volume logs.
    * @default false
    */
   disableRealtimeQueries?: boolean;
+  /**
+   * Bucket monitor charts by `metrics.start` instead of `created`.
+   * @default false
+   */
+  monitorChartsUseMetricsStart?: boolean;
+  /**
+   * Show the agent insights dashboard for this project.
+   * @default false
+   */
+  codingAgentInsightsDashboard?: boolean;
   /**
    * Hide peer review scores, comments and aggregate results from reviewers
    * without project update permission until they submit their own review.
@@ -39,6 +56,29 @@ export interface ProjectSettings {
    * @default false
    */
   requireAllHumanReviewScores?: boolean;
+  /**
+   * Paths to your application's end-user id in `metadata` or
+   * `span_attributes`, e.g. `[["metadata", "customer_id"]]`.
+   */
+  userIdFields?: braintrust.ProjectSettingsUserIdFieldsList;
+  /**
+   * Paths to your application's session or conversation id, e.g.
+   * `[["metadata", "conversation_id"]]`. Links the turns of one
+   * conversation across traces.
+   */
+  sessionIdFields?: braintrust.ProjectSettingsSessionIdFieldsList;
+  /**
+   * Webhook, Slack and PagerDuty destinations for new and reactivated
+   * Pattern alerts. An empty list disables alerts.
+   */
+  patternAlertDestinations?: braintrust.ProjectSettingsPatternAlertDestinationsList;
+  /**
+   * Preprocessor that functions using one run instead of their built-in
+   * default: `{ type: "function", id }` for a preprocessor function in
+   * the project, or `{ type: "global", name }` for a built-in one such as
+   * `thread`. A global one is sent as a `preprocessor`.
+   */
+  defaultPreprocessor?: braintrust.NullableSavedFunctionId;
 }
 
 export interface ProjectProps {
@@ -52,8 +92,9 @@ export interface ProjectProps {
   /** Textual description of the project. Removing it clears the description. */
   description?: string;
   /**
-   * Project settings. Only the settings listed in {@link ProjectSettings}
-   * are managed; removing one resets it to Braintrust's default.
+   * Project settings. Only the settings set here are managed; removing one
+   * resets it to Braintrust's default. Left unset, settings are not
+   * managed.
    */
   settings?: ProjectSettings;
   /**
@@ -139,6 +180,18 @@ export interface ProjectLookup {
  * });
  * ```
  *
+ * **Example:** Identify users and sessions, and send Pattern alerts to a webhook
+ * ```typescript
+ * const project = yield* Braintrust.Project("Support", {
+ *   settings: {
+ *     userIdFields: [["metadata", "customer_id"]],
+ *     sessionIdFields: [["metadata", "conversation_id"]],
+ *     patternAlertDestinations: [{ type: "webhook", url: "https://example.com/alerts" }],
+ *     defaultPreprocessor: { type: "global", name: "thread" },
+ *   },
+ * });
+ * ```
+ *
  * ### Adding datasets and experiments
  * **Example:** A dataset and an experiment in the project
  * ```typescript
@@ -186,15 +239,31 @@ export interface ProjectLookup {
  */
 export const Project = Resource<Project>("Braintrust.Project");
 
+// Braintrust stores a global preprocessor sent without `function_type` as
+// a `scorer`, then refuses that value on every later settings write.
+const preprocessorOf = (preprocessor: braintrust.NullableSavedFunctionId | undefined) =>
+  preprocessor?.type === "global" && preprocessor.function_type === undefined
+    ? { ...preprocessor, function_type: "preprocessor" }
+    : preprocessor;
+
 /** The managed settings as Braintrust names them; `undefined` means its default. */
 const settingsOf = (settings: ProjectSettings | undefined) => ({
   comparison_key: settings?.comparisonKey,
   baseline_experiment_id: settings?.baselineExperimentId,
+  spanFieldOrder: settings?.spanFieldOrder,
+  remote_eval_sources: settings?.remoteEvalSources,
   disable_realtime_queries: settings?.disableRealtimeQueries,
+  monitor_charts_use_metrics_start: settings?.monitorChartsUseMetricsStart,
+  coding_agent_insights_dashboard: settings?.codingAgentInsightsDashboard,
   blind_reviews: settings?.blindReviews,
   require_all_human_review_scores: settings?.requireAllHumanReviewScores,
+  user_id_fields: settings?.userIdFields,
+  session_id_fields: settings?.sessionIdFields,
+  pattern_alert_destinations: settings?.patternAlertDestinations,
+  default_preprocessor: preprocessorOf(settings?.defaultPreprocessor),
 });
 
+type ManagedSettings = ReturnType<typeof settingsOf>;
 /**
  * Settings and memberships are reported only when the props manage them
  * (`owned`), so drift ignores the ones left to the Braintrust UI.
@@ -213,9 +282,17 @@ const toAttributes = (
       ? {
           comparisonKey: settings.comparison_key ?? undefined,
           baselineExperimentId: settings.baseline_experiment_id ?? undefined,
+          spanFieldOrder: settings.spanFieldOrder ?? undefined,
+          remoteEvalSources: settings.remote_eval_sources ?? undefined,
           disableRealtimeQueries: settings.disable_realtime_queries ?? undefined,
+          monitorChartsUseMetricsStart: settings.monitor_charts_use_metrics_start ?? undefined,
+          codingAgentInsightsDashboard: settings.coding_agent_insights_dashboard ?? undefined,
           blindReviews: settings.blind_reviews ?? undefined,
           requireAllHumanReviewScores: settings.require_all_human_review_scores ?? undefined,
+          userIdFields: settings.user_id_fields ?? undefined,
+          sessionIdFields: settings.session_id_fields ?? undefined,
+          patternAlertDestinations: settings.pattern_alert_destinations ?? undefined,
+          defaultPreprocessor: settings.default_preprocessor ?? undefined,
         }
       : undefined,
     projectGroupIds: owned.projectGroupIds,
@@ -308,8 +385,8 @@ export const ProjectProvider = () =>
           if (news.settings !== undefined || olds?.settings !== undefined) {
             const managed = settingsOf(news.settings);
             const observed = project.settings ?? {};
-            const changed = (Object.keys(managed) as (keyof typeof managed)[]).some(
-              (key) => (observed[key] ?? undefined) !== managed[key],
+            const changed = (Object.keys(managed) as (keyof ManagedSettings)[]).some(
+              (key) => !deepEqual(observed[key], managed[key], { stripNullish: true }),
             );
             if (changed) update.settings = { ...observed, ...managed };
           }

@@ -42,6 +42,19 @@ const triage = yield* Braintrust.Project("Triage", {
 
 `blindReviews` hides other reviewers' scores until a reviewer has submitted their own. `baselineExperimentId` sets the experiment every run is compared with by default. Settings made in the UI that you don't declare are left alone, and removing one you did declare puts back Braintrust's default.
 
+Every project setting is declared the same way, including which fields identify your users and sessions, where Pattern alerts go, and the default preprocessor:
+
+```typescript title="alchemy.run.ts"
+const support = yield* Braintrust.Project("Support", {
+  settings: {
+    userIdFields: [["metadata", "customer_id"]],
+    sessionIdFields: [["metadata", "conversation_id"]],
+    patternAlertDestinations: [{ type: "webhook", url: "https://example.com/alerts" }],
+    defaultPreprocessor: { type: "global", name: "thread" },
+  },
+});
+```
+
 ## Share access across projects
 
 A **project group** is a set of projects that share access. An ACL on the group applies to every project in it, and to projects added later.

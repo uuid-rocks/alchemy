@@ -76,6 +76,90 @@ test.provider(
 );
 
 test.provider(
+  "manage every project setting, keep unmanaged ones, and reset removed ones",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const project = yield* stack.deploy(Braintrust.Project("Project", {}));
+      // Deleted with the project on destroy.
+      const baseline = yield* braintrust.createExperiment({
+        project_id: project.projectId,
+        name: testName("alchemy-test-bt-settings-baseline"),
+      });
+
+      const settings: Braintrust.ProjectSettings = {
+        comparisonKey: "metadata.case_id",
+        baselineExperimentId: baseline.id,
+        spanFieldOrder: [
+          { object_type: "project_logs", column_id: "input", position: "0", layout: "full" },
+        ],
+        remoteEvalSources: [{ url: "https://example.com/eval", name: "remote" }],
+        disableRealtimeQueries: true,
+        monitorChartsUseMetricsStart: true,
+        codingAgentInsightsDashboard: true,
+        blindReviews: true,
+        requireAllHumanReviewScores: true,
+        userIdFields: [["metadata", "customer_id"]],
+        sessionIdFields: [["metadata", "conversation_id"]],
+        patternAlertDestinations: [{ type: "webhook", url: "https://example.com/alerts" }],
+        defaultPreprocessor: { type: "global", name: "thread" },
+      };
+      const all = yield* stack.deploy(Braintrust.Project("Project", { settings }));
+      expect(all.projectId).toBe(project.projectId);
+      yield* eventually(getProject(project.projectId), (observed) => {
+        expect(observed.settings).toMatchObject({
+          comparison_key: "metadata.case_id",
+          baseline_experiment_id: baseline.id,
+          spanFieldOrder: settings.spanFieldOrder,
+          remote_eval_sources: settings.remoteEvalSources,
+          disable_realtime_queries: true,
+          monitor_charts_use_metrics_start: true,
+          coding_agent_insights_dashboard: true,
+          blind_reviews: true,
+          require_all_human_review_scores: true,
+          user_id_fields: settings.userIdFields,
+          session_id_fields: settings.sessionIdFields,
+          pattern_alert_destinations: settings.patternAlertDestinations,
+          // Sent as a preprocessor: Braintrust would store a `scorer` and
+          // then refuse every later settings write.
+          default_preprocessor: { type: "global", name: "thread", function_type: "preprocessor" },
+        });
+      });
+      const plan = yield* stack.plan(Braintrust.Project("Project", { settings }));
+      expect(plan.resources.Project.action).toBe("noop");
+      const detect = () => Drift.detect(stack).pipe(Effect.provide(stack.state));
+      expect((yield* detect()).resources.Project?.action).toBe("unchanged");
+
+      // A setting newer than the SDK, set in the UI, survives Alchemy's writes.
+      const mention = { workspace_id: "T0001", mention_user_id: "U0001" };
+      const observed = yield* getProject(project.projectId);
+      yield* braintrust.updateProject({
+        project_id: project.projectId,
+        settings: { ...observed.settings, pattern_alert_mention: mention } as never,
+      });
+
+      const reset = yield* stack.deploy(
+        Braintrust.Project("Project", { settings: { comparisonKey: "metadata.case_id" } }),
+      );
+      expect(reset.settings).toEqual({ comparisonKey: "metadata.case_id" });
+      yield* eventually(getProject(project.projectId), (after) => {
+        const { comparison_key, pattern_alert_mention, ...rest } = after.settings as Record<
+          string,
+          unknown
+        >;
+        expect(comparison_key).toBe("metadata.case_id");
+        expect(pattern_alert_mention).toEqual(mention);
+        expect(Object.values(rest).filter((value) => value != null)).toEqual([]);
+      });
+
+      yield* stack.destroy();
+      yield* expectProjectGone(project.projectId);
+    }),
+  { tags, timeout: 120_000 },
+);
+
+test.provider(
   "drift restores managed settings and project group memberships",
   (stack) =>
     Effect.gen(function* () {
