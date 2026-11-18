@@ -107,7 +107,7 @@ export interface McpServerLookup {
  * const project = yield* Braintrust.Project("Support", {});
  * const tools = yield* Braintrust.McpServer("Tools", {
  *   projectId: project.projectId,
- *   url: yield* Config.redacted("TOOLS_MCP_URL"),
+ *   url: yield* Config.Redacted("TOOLS_MCP_URL"),
  * });
  * ```
  *

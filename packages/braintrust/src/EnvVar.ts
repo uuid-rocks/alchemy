@@ -140,7 +140,7 @@ export interface EnvVarLookup {
  *   objectType: "organization",
  *   objectId: project.orgId,
  *   name: "SLACK_BOT_TOKEN",
- *   value: yield* Config.redacted("SLACK_BOT_TOKEN"),
+ *   value: yield* Config.Redacted("SLACK_BOT_TOKEN"),
  * });
  * ```
  *

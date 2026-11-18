@@ -96,7 +96,7 @@ export interface AiSecretLookup {
  * const openai = yield* Braintrust.AiSecret("OpenAI", {
  *   name: "OPENAI_API_KEY",
  *   type: "openai",
- *   secret: yield* Config.redacted("OPENAI_API_KEY"),
+ *   secret: yield* Config.Redacted("OPENAI_API_KEY"),
  * });
  * ```
  *
