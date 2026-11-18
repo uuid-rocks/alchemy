@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
+import { testName } from "../names.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -40,9 +41,9 @@ const accepts = (key: Redacted.Redacted<string>) =>
 
 // The deployer's own token expires, and Braintrust refuses tokens that
 // outlive it, so every test token sets an expiry.
-const program = (expiresInSeconds: number) =>
+const program = (expiresInSeconds: number, accountName?: string) =>
   Effect.gen(function* () {
-    const account = yield* Braintrust.ServiceAccount("Account", {});
+    const account = yield* Braintrust.ServiceAccount("Account", { name: accountName });
     return yield* Braintrust.ServiceToken("Token", {
       serviceAccountId: account.serviceAccountId,
       expiresInSeconds,
@@ -89,10 +90,20 @@ test.provider(
       );
       expect(stillAccepted).toBe(false);
 
-      yield* stack.destroy();
+      // Renaming the account replaces it, and its new id is known only at
+      // apply, so the plan already replaces the token instead of updating it.
+      const renamed = program(7200, testName("alchemy-test-bt-st-account"));
+      expect((yield* stack.plan(renamed)).resources.Token.action).toBe("replace");
+      const moved = yield* stack.deploy(renamed);
+      expect(moved.serviceAccountId).not.toBe(rotated.serviceAccountId);
+      expect(moved.serviceTokenId).not.toBe(rotated.serviceTokenId);
+      expect(yield* accepts(moved.key)).toBe(true);
       yield* expectTokenGone(rotated.serviceTokenId);
+
+      yield* stack.destroy();
+      yield* expectTokenGone(moved.serviceTokenId);
     }),
-  { tags, timeout: 120_000 },
+  { tags, timeout: 240_000 },
 );
 
 test.provider(

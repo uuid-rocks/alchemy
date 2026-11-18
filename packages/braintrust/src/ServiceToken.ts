@@ -134,9 +134,10 @@ export const ServiceTokenProvider = () =>
       return {
         stables: ["serviceTokenId", "serviceAccountId", "key"],
         diff: Effect.fn(function* ({ news, olds, output }) {
-          if (!isResolved(news)) return undefined;
-          // A token has no update; any change is a new token.
-          if (!deepEqual(news, olds)) return { action: "replace" } as const;
+          // A token has no update; any change is a new token. A prop that
+          // resolves only at apply (a replaced account's id) may change, so
+          // the old key can't be offered as stable.
+          if (!isResolved(news) || !deepEqual(news, olds)) return { action: "replace" } as const;
           // A token without an asked-for expiry is capped by the deployer's,
           // so nothing else would renew it before its hosts lose access.
           if (output?.expiresAt) {
