@@ -76,7 +76,7 @@ test.provider(
 );
 
 test.provider(
-  "manage every project setting, keep unmanaged ones, and reset removed ones",
+  "manage every project setting and reset removed ones",
   (stack) =>
     Effect.gen(function* () {
       yield* stack.destroy();
@@ -103,6 +103,11 @@ test.provider(
         userIdFields: [["metadata", "customer_id"]],
         sessionIdFields: [["metadata", "conversation_id"]],
         patternAlertDestinations: [{ type: "webhook", url: "https://example.com/alerts" }],
+        patternAlertMention: {
+          workspace_id: "T0001",
+          mention_user_id: "U0001",
+          mention_prompt: "Investigate {{pattern}}",
+        },
         defaultPreprocessor: { type: "global", name: "thread" },
       };
       const all = yield* stack.deploy(Braintrust.Project("Project", { settings }));
@@ -121,6 +126,7 @@ test.provider(
           user_id_fields: settings.userIdFields,
           session_id_fields: settings.sessionIdFields,
           pattern_alert_destinations: settings.patternAlertDestinations,
+          pattern_alert_mention: settings.patternAlertMention,
           // Sent as a preprocessor: Braintrust would store a `scorer` and
           // then refuse every later settings write.
           default_preprocessor: { type: "global", name: "thread", function_type: "preprocessor" },
@@ -131,25 +137,13 @@ test.provider(
       const detect = () => Drift.detect(stack).pipe(Effect.provide(stack.state));
       expect((yield* detect()).resources.Project?.action).toBe("unchanged");
 
-      // A setting newer than the SDK, set in the UI, survives Alchemy's writes.
-      const mention = { workspace_id: "T0001", mention_user_id: "U0001" };
-      const observed = yield* getProject(project.projectId);
-      yield* braintrust.updateProject({
-        project_id: project.projectId,
-        settings: { ...observed.settings, pattern_alert_mention: mention } as never,
-      });
-
       const reset = yield* stack.deploy(
         Braintrust.Project("Project", { settings: { comparisonKey: "metadata.case_id" } }),
       );
       expect(reset.settings).toEqual({ comparisonKey: "metadata.case_id" });
       yield* eventually(getProject(project.projectId), (after) => {
-        const { comparison_key, pattern_alert_mention, ...rest } = after.settings as Record<
-          string,
-          unknown
-        >;
+        const { comparison_key, ...rest } = after.settings as Record<string, unknown>;
         expect(comparison_key).toBe("metadata.case_id");
-        expect(pattern_alert_mention).toEqual(mention);
         expect(Object.values(rest).filter((value) => value != null)).toEqual([]);
       });
 

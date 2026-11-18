@@ -74,6 +74,12 @@ export interface ProjectSettings {
    */
   patternAlertDestinations?: braintrust.ProjectSettingsPatternAlertDestinationsList;
   /**
+   * Slack user or agent (`mention_user_id`, e.g. `U0123ABCD`) mentioned in
+   * the thread of a Pattern alert sent to Slack workspace `workspace_id`,
+   * with an optional `mention_prompt` that contains `{{pattern}}`.
+   */
+  patternAlertMention?: braintrust.ProjectSettingsPatternAlertMention;
+  /**
    * Preprocessor that functions using one run instead of their built-in
    * default: `{ type: "function", id }` for a preprocessor function in
    * the project, or `{ type: "global", name }` for a built-in one such as
@@ -263,6 +269,7 @@ const settingsOf = (settings: ProjectSettings | undefined) => ({
   user_id_fields: settings?.userIdFields,
   session_id_fields: settings?.sessionIdFields,
   pattern_alert_destinations: settings?.patternAlertDestinations,
+  pattern_alert_mention: settings?.patternAlertMention,
   default_preprocessor: preprocessorOf(settings?.defaultPreprocessor),
 });
 
@@ -295,6 +302,7 @@ const toAttributes = (
           userIdFields: settings.user_id_fields ?? undefined,
           sessionIdFields: settings.session_id_fields ?? undefined,
           patternAlertDestinations: settings.pattern_alert_destinations ?? undefined,
+          patternAlertMention: settings.pattern_alert_mention ?? undefined,
           defaultPreprocessor: settings.default_preprocessor ?? undefined,
         }
       : undefined,
