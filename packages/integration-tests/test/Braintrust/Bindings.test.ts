@@ -1208,6 +1208,77 @@ describe("Host lifecycle", { tags }, () => {
   );
 });
 
+describe("Partial failure", { tags }, () => {
+  test.provider(
+    "a deploy whose grant fails keeps the host's account, and the next deploy revokes the grant it made",
+    (stack) =>
+      Effect.gen(function* () {
+        yield* stack.destroy();
+        const objects = Effect.gen(function* () {
+          const project = yield* Braintrust.Project("Partial", {});
+          const kept = yield* Braintrust.Dataset("Kept", { projectId: project.projectId });
+          const gone = yield* Braintrust.Dataset("Gone", { projectId: project.projectId });
+          return { project, kept, gone };
+        });
+        const ids = yield* stack.deploy(objects);
+        // Deleted behind the stack's back: the stack still binds its id, and
+        // Braintrust refuses an ACL on it.
+        yield* braintrust.deleteDataset({ dataset_id: ids.gone.datasetId });
+
+        // The logs grant comes first, so it exists when the dataset grant fails.
+        const failure = yield* stack
+          .deploy(
+            Effect.gen(function* () {
+              const { project, gone } = yield* objects;
+              return yield* host(
+                "PartialHost",
+                Effect.gen(function* () {
+                  yield* Braintrust.ReadProjectLogs(project);
+                  yield* Braintrust.ReadDataset(gone);
+                }).pipe(
+                  Effect.provide(
+                    Layer.mergeAll(Braintrust.ReadProjectLogsHttp, Braintrust.ReadDatasetHttp),
+                  ),
+                ),
+              );
+            }),
+          )
+          .pipe(Effect.flip);
+        expect(String(failure)).toContain(ids.gone.datasetId);
+
+        const program = Effect.gen(function* () {
+          const { kept } = yield* objects;
+          return yield* host(
+            "PartialHost",
+            Braintrust.ReadDataset(kept).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),
+          );
+        });
+        const plan = yield* stack.plan(program);
+        const account = Object.values(plan.resources).find(
+          (node) => node.resource.Type === "Braintrust.ServiceAccount",
+        );
+        const serviceAccountId: unknown = account?.state?.attr?.serviceAccountId;
+        expect(serviceAccountId).toBeTypeOf("string");
+        const logsAcls = yield* Stream.runCollect(
+          braintrust.listAcls.items({
+            object_type: "project_log",
+            object_id: ids.project.projectId,
+          }),
+        );
+        expect(logsAcls.filter((acl) => acl.user_id === serviceAccountId).length).toBe(1);
+
+        // Fixed: the same account, and the logs grant no binding asks for is gone.
+        const env = yield* stack.deploy(program);
+        expect(yield* grantsOf(env)).toEqual({
+          serviceAccountId,
+          grants: [`dataset:${ids.kept.datasetId}:read`],
+        });
+        yield* stack.destroy();
+      }),
+    { tags, timeout: 300_000 },
+  );
+});
+
 describe("Looked-up objects", { tags }, () => {
   test.provider(
     "grants a host each looked-up dataset it binds",

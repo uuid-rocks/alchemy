@@ -16,6 +16,7 @@ import { Experiment, ExperimentProvider } from "./Experiment.ts";
 import { Function, FunctionProvider } from "./Function.ts";
 import { Group, GroupProvider } from "./Group.ts";
 import { IngestKey, IngestKeyProvider } from "./IngestKey.ts";
+import { HostGrants, HostGrantsProvider } from "./internal/HostGrants.ts";
 import { McpServer, McpServerProvider } from "./McpServer.ts";
 import { OrganizationMember, OrganizationMemberProvider } from "./OrganizationMember.ts";
 import { OrganizationSettings, OrganizationSettingsProvider } from "./OrganizationSettings.ts";
@@ -63,6 +64,7 @@ export const providers = () =>
       Experiment,
       Function,
       Group,
+      HostGrants,
       IngestKey,
       McpServer,
       OrganizationMember,
@@ -92,6 +94,7 @@ export const providers = () =>
         ExperimentProvider(),
         FunctionProvider(),
         GroupProvider(),
+        HostGrantsProvider(),
         IngestKeyProvider(),
         McpServerProvider(),
         OrganizationMemberProvider(),

@@ -5,8 +5,9 @@
  * each host gets its own: a `Braintrust.ServiceAccount` and a
  * `Braintrust.ServiceToken` for it, created at deploy in the host's
  * namespace. Each binding adds the permissions it needs, on the object it
- * binds, to the account's bindings; the account reconciles them as one set,
- * one ACL per distinct grant, when the bound objects' ids are known. Every
+ * binds, to the host's grants, which keep the account's ACLs at exactly one
+ * per distinct grant once the bound objects' ids are known. The bindings own
+ * the account: an ACL on it that no binding asks for is revoked. Every
  * binding on a host shares the account and token. Destroying the host
  * revokes the token and removes the account and its grants. The deployer's
  * credentials never reach a host.
@@ -41,6 +42,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Scheduler from "effect/Scheduler";
+import { HostGrants } from "./internal/HostGrants.ts";
 import { ServiceAccount } from "./ServiceAccount.ts";
 import { ServiceToken } from "./ServiceToken.ts";
 
@@ -91,25 +93,30 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
     // the stack satisfies it at plan time.
     const makeAccount = yield* ServiceAccount;
     const makeToken = yield* ServiceToken;
+    const makeGrants = yield* HostGrants;
     const stack = yield* Effect.serviceOption(Stack);
     const token = yield* Namespace.push(
       host.LogicalId,
       Effect.gen(function* () {
         const account = yield* makeAccount("BraintrustServiceAccount", {});
+        const hostGrants = yield* makeGrants("BraintrustGrants", {
+          serviceAccountId: account.serviceAccountId,
+        });
         // Nothing known at plan time tells two bound objects apart (a
         // lookup's props can be closures over different values), so each
-        // binding gets its own sid by position and the account dedupes the
-        // grants once their ids resolve. The position is read and taken in
+        // binding gets its own sid by position and the grants are deduped
+        // once their ids resolve. The position is read and taken in
         // one step: a scheduler yield in between lets a concurrent binding
         // take the same sid, and core keeps only one row per sid.
         yield* Effect.suspend(() =>
-          account.bind(
-            `Grant${Option.isSome(stack) ? (stack.value.bindings[account.FQN]?.length ?? 0) : 0}`,
+          hostGrants.bind(
+            `Grant${Option.isSome(stack) ? (stack.value.bindings[hostGrants.FQN]?.length ?? 0) : 0}`,
             { grants: grants.map((grant) => ({ ...grant, objectId })) },
           ),
         ).pipe(Effect.provideService(Scheduler.PreventSchedulerYield, true));
+        // Through the grants, so the host gets its token once they exist.
         return yield* makeToken("BraintrustServiceToken", {
-          serviceAccountId: account.serviceAccountId,
+          serviceAccountId: hostGrants.serviceAccountId,
         });
       }),
     );
