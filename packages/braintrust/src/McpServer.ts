@@ -167,11 +167,14 @@ export const McpServerProvider = () =>
         stables: ["mcpServerId", "projectId"],
         diff: Effect.fn(function* ({ news, olds }) {
           if (!isResolved(news)) return undefined;
-          if (
-            news.projectId !== olds.projectId ||
-            originOf(plain(news.url)) !== originOf(plain(olds.url))
-          ) {
-            return { action: "replace" } as const;
+          if (news.projectId !== olds.projectId) return { action: "replace" } as const;
+          if (originOf(plain(news.url)) !== originOf(plain(olds.url))) {
+            // A replacement under the same name would find the old server
+            // again and PATCH its origin, so it goes first.
+            return {
+              action: "replace",
+              deleteFirst: news.name !== undefined && news.name === olds.name,
+            } as const;
           }
         }),
         lookup: Effect.fn(function* ({ projectId, name }) {

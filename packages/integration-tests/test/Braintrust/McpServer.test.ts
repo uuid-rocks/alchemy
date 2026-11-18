@@ -118,6 +118,30 @@ test.provider(
 );
 
 test.provider(
+  "a new origin replaces an explicitly named MCP server under the same name",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+      const name = testName("alchemy-test-bt-mcp-origin");
+
+      const first = yield* stack.deploy(inProject({ name, url: "https://mcp.example.com/mcp" }));
+      const reoriginated = yield* stack.deploy(
+        inProject({ name, url: "https://tools.example.com/mcp" }),
+      );
+      expect(reoriginated.mcpServerId).not.toBe(first.mcpServerId);
+      yield* expectMcpServerGone(first.mcpServerId);
+      yield* eventually(getMcpServer(reoriginated.mcpServerId), (observed) => {
+        expect(observed.name).toBe(name);
+        expect(observed.url).toBe("https://tools.example.com/mcp");
+      });
+
+      yield* stack.destroy();
+      yield* expectMcpServerGone(reoriginated.mcpServerId);
+    }),
+  { tags, timeout: 120_000 },
+);
+
+test.provider(
   "a Redacted URL stays Redacted in the attributes",
   (stack) =>
     Effect.gen(function* () {
