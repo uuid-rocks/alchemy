@@ -63,7 +63,13 @@ const Others = Effect.gen(function* () {
     projectId: project.projectId,
   });
   const dataset = yield* Braintrust.Dataset("OtherDataset", { projectId: project.projectId });
-  return { project, experiment, dataset };
+  // Not a real Anthropic key either: a call that reaches Anthropic with it
+  // proves the proxy used this secret.
+  const secret = yield* Braintrust.AiSecret("OtherSecret", {
+    type: "anthropic",
+    secret: Redacted.make("sk-ant-fake-not-a-key"),
+  });
+  return { project, experiment, dataset, secret };
 });
 
 const readerInit = (b: Bound) =>
@@ -1027,25 +1033,35 @@ describe("Braintrust bindings", { tags }, () => {
       ),
     );
 
-  const expectReachedOpenAi = (reached: { tag: string; message: string }) => {
+  const expectReachedProvider = (reached: { tag: string; message: string }) => {
     expect(reached.tag).toBe("Unauthorized");
     expect(reached.message).not.toContain("Braintrust gateway error");
   };
 
   describe("ProxyChatCompletions", () => {
-    test(
-      "calls OpenAI with the bound secret's key, and no other provider",
-      Effect.gen(function* () {
-        const reached = yield* reachedOpenAi(({ chat }) =>
-          chat({ model: "gpt-4.1-mini", messages: [{ role: "user", content: "hi" }] }),
-        );
-        expectReachedOpenAi(reached);
-        const other = yield* reachedOpenAi(({ chat }) =>
-          chat({ model: "claude-3-5-haiku-latest", messages: [{ role: "user", content: "hi" }] }),
-        );
-        expect(other.tag).toBe("NotFound");
-        expect(other.message).toContain("No provider found");
-      }),
+    test.provider(
+      "calls OpenAI with the bound secret's key, and can't use a secret the host isn't granted",
+      (_stack) =>
+        Effect.gen(function* () {
+          const reached = yield* reachedOpenAi(({ chat }) =>
+            chat({ model: "gpt-4.1-mini", messages: [{ role: "user", content: "hi" }] }),
+          );
+          expectReachedProvider(reached);
+          // The org's Anthropic secret works for the deployer, who can read it...
+          const claude = {
+            model: "claude-haiku-4-5",
+            messages: [{ role: "user", content: "hi" }],
+          };
+          const deployer = yield* braintrust.createProxyChatCompletion(claude).pipe(
+            Effect.flip,
+            Effect.map((error) => ({ tag: error._tag, message: String(error.message ?? "") })),
+          );
+          expectReachedProvider(deployer);
+          // ...but not for the host, whose token can read only the bound secret.
+          const other = yield* reachedOpenAi(({ chat }) => chat(claude));
+          expect(other.tag).toBe("NotFound");
+          expect(other.message).toContain("No provider found");
+        }),
       { tags, timeout: 120_000 },
     );
   });
@@ -1057,7 +1073,7 @@ describe("Braintrust bindings", { tags }, () => {
         const reached = yield* reachedOpenAi(({ complete }) =>
           complete({ model: "gpt-3.5-turbo-instruct", prompt: "hi" }),
         );
-        expectReachedOpenAi(reached);
+        expectReachedProvider(reached);
       }),
       { tags, timeout: 120_000 },
     );
@@ -1070,7 +1086,7 @@ describe("Braintrust bindings", { tags }, () => {
         const reached = yield* reachedOpenAi(({ embed }) =>
           embed({ model: "text-embedding-3-small", input: "hi" }),
         );
-        expectReachedOpenAi(reached);
+        expectReachedProvider(reached);
       }),
       { tags, timeout: 120_000 },
     );
@@ -1083,7 +1099,7 @@ describe("Braintrust bindings", { tags }, () => {
         const reached = yield* reachedOpenAi(({ auto }) =>
           auto({ model: "gpt-4.1-nano", messages: [{ role: "user", content: "hi" }] }),
         );
-        expectReachedOpenAi(reached);
+        expectReachedProvider(reached);
       }),
       { tags, timeout: 120_000 },
     );
@@ -1096,7 +1112,7 @@ describe("Braintrust bindings", { tags }, () => {
         const reached = yield* reachedOpenAi(({ proxy }) =>
           proxy({ path: "responses", model: "gpt-4.1-mini", input: "hi" }),
         );
-        expectReachedOpenAi(reached);
+        expectReachedProvider(reached);
       }),
       { tags, timeout: 120_000 },
     );
