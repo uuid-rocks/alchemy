@@ -123,6 +123,41 @@ test.provider(
 );
 
 test.provider(
+  "removing a null constraint from the response schema writes a new version",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const withAnswer = (answer: Record<string, unknown>) =>
+        inProject({
+          promptData: chat("schema", {
+            model: "gpt-4o-mini",
+            params: {
+              response_format: {
+                type: "json_schema",
+                json_schema: { name: "answer", schema: { properties: { answer } } },
+              },
+            },
+          }),
+        });
+
+      const constrained = yield* stack.deploy(withAnswer({ const: null }));
+      const relaxed = yield* stack.deploy(withAnswer({}));
+      expect(relaxed.version).not.toBe(constrained.version);
+      yield* eventually(getPrompt(constrained.promptId), (observed) => {
+        expect(observed.prompt_data?.options?.params).toMatchObject({
+          response_format: { json_schema: { schema: { properties: { answer: {} } } } },
+        });
+        expect(JSON.stringify(observed.prompt_data)).not.toContain('"const"');
+      });
+
+      yield* stack.destroy();
+      yield* expectPromptGone(constrained.promptId);
+    }),
+  { tags, timeout: 120_000 },
+);
+
+test.provider(
   "a prompt with a function type serves as a scorer",
   (stack) =>
     Effect.gen(function* () {

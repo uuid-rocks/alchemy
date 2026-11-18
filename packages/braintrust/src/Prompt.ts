@@ -415,7 +415,9 @@ export const PromptProvider = () =>
             observed.name === body.name &&
             observed.description === (news.description || undefined) &&
             deepEqual(observed.tags, body.tags) &&
-            deepEqual(observed.promptData, news.promptData, { stripNullish: true }) &&
+            // Braintrust stores `prompt_data` as sent, and a null inside a
+            // JSON schema is a constraint, so nulls are compared too.
+            deepEqual(observed.promptData, news.promptData) &&
             observed.functionType === news.functionType;
           // An environment can't be unassigned, only left on an older version.
           const environmentsDiffer =
