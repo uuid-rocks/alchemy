@@ -184,18 +184,18 @@ const getById = (envVarId: string) =>
     .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.undefined));
 
 const findByName = (objectType: EnvVarObjectType, objectId: string, name: string) =>
-  braintrust
-    .listEnvVars({ object_type: objectType, object_id: objectId, env_var_name: name })
-    .pipe(
-      Effect.map(({ objects }) =>
-        objects.find(
-          (envVar) =>
-            envVar.object_type === objectType &&
-            envVar.object_id === objectId &&
-            envVar.name === name,
-        ),
+  braintrust.listEnvVars({ object_type: objectType, object_id: objectId, env_var_name: name }).pipe(
+    Effect.map(({ objects }) =>
+      objects.find(
+        (envVar) =>
+          envVar.object_type === objectType &&
+          envVar.object_id === objectId &&
+          envVar.name === name,
       ),
-    );
+    ),
+    // A scope that is gone (or was never there) has no variables.
+    Effect.catchTag("NotFoundOrForbidden", () => Effect.undefined),
+  );
 
 export const EnvVarProvider = () =>
   Provider.effect(
@@ -304,7 +304,12 @@ export const EnvVarProvider = () =>
           );
           const lists = yield* Effect.forEach(
             owned,
-            (project) => braintrust.listEnvVars({ object_type: "project", object_id: project.id }),
+            (project) =>
+              braintrust
+                .listEnvVars({ object_type: "project", object_id: project.id })
+                .pipe(
+                  Effect.catchTag("NotFoundOrForbidden", () => Effect.succeed({ objects: [] })),
+                ),
             { concurrency: 4 },
           );
           return lists.flatMap(({ objects }) => objects.map(toAttributes));

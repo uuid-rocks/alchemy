@@ -1,11 +1,13 @@
 import * as Braintrust from "@alchemy.run/braintrust";
 import { expect } from "@alchemy.run/test";
 import * as Test from "@alchemy.run/test/Alchemy";
+import * as Core from "@alchemy.run/test/Core";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import { adopt, OwnedBySomeoneElse } from "alchemy/AdoptPolicy";
 import * as Drift from "alchemy/Drift";
 import type { InputProps } from "alchemy/Input";
 import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
 import * as Redacted from "effect/Redacted";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
@@ -237,4 +239,36 @@ test.provider(
       yield* expectEnvVarGone(foreign.id);
     }),
   { tags, timeout: 120_000 },
+);
+
+test.provider(
+  "a lookup in a project that does not exist finds nothing",
+  () =>
+    Effect.gen(function* () {
+      // Braintrust answers a list scoped to a missing project with 403.
+      const lookup = Braintrust.EnvVar.lookup({
+        objectType: "project",
+        objectId: crypto.randomUUID(),
+        name: "ALCHEMY_TEST_MISSING",
+      });
+      const probe = Core.scratchStack(
+        { providers: Braintrust.providers() },
+        "BraintrustLookupProbe",
+      );
+      const lookupMissed = yield* probe
+        .plan(
+          // Resolving the attribute runs the lookup.
+          Braintrust.Project("lookup-probe", { description: lookup.envVarId }),
+        )
+        .pipe(
+          Effect.map(() => false),
+          Effect.catchDefect((defect) =>
+            Predicate.isTagged(defect, "LookupNotFoundError")
+              ? Effect.succeed(true)
+              : Effect.die(defect),
+          ),
+        );
+      expect(lookupMissed).toBe(true);
+    }),
+  { tags, timeout: 60_000 },
 );
