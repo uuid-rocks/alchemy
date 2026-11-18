@@ -4,6 +4,7 @@ import * as Test from "@alchemy.run/test/Alchemy";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import { adopt, OwnedBySomeoneElse } from "alchemy/AdoptPolicy";
 import * as Drift from "alchemy/Drift";
+import * as Provider from "alchemy/Provider";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Result from "effect/Result";
@@ -20,6 +21,10 @@ const first = "sk-test-alchemy-first-11111";
 const second = "sk-test-alchemy-second-22222";
 
 const getAiSecret = (aiSecretId: string) => braintrust.getAiSecret({ ai_secret_id: aiSecretId });
+
+/** JSON with every `Redacted` value unwrapped, to check a key never comes back. */
+const revealed = (value: unknown) =>
+  JSON.stringify(value, (_, v) => (Redacted.isRedacted(v) ? Redacted.value(v) : v));
 
 const expectAiSecretGone = (aiSecretId: string) =>
   Effect.gen(function* () {
@@ -44,12 +49,29 @@ test.provider(
       const secret = yield* stack.deploy(
         Braintrust.AiSecret("AiSecret", { ...props, secret: Redacted.make(first) }),
       );
-      const created = yield* getAiSecret(secret.aiSecretId);
-      expect(created.name).toBe(secret.name);
-      expect(created.type).toBe("openai");
-      expect(created.metadata).toEqual(props.metadata);
+      expect(secret.type).toBe("openai");
+      expect(secret.metadata).toEqual(props.metadata);
+      yield* eventually(getAiSecret(secret.aiSecretId), (created) => {
+        expect(created.name).toBe(secret.name);
+        expect(created.type).toBe("openai");
+        expect(created.metadata).toEqual(props.metadata);
+        expect(revealed(created)).not.toContain(first);
+      });
       expect(Redacted.isRedacted(secret.previewSecret)).toBe(true);
-      expect(JSON.stringify(secret)).not.toContain(first);
+      expect(revealed(secret)).not.toContain(first);
+      // The provider's read reports the type and settings, never the key.
+      const provider = yield* Provider.findProvider(Braintrust.AiSecret);
+      const read = yield* provider.read!({
+        id: "AiSecret",
+        fqn: "AiSecret",
+        instanceId: "00000000000000000000000000000000",
+        olds: { ...props, secret: Redacted.make(first) },
+        output: secret,
+      });
+      expect(read?.aiSecretId).toBe(secret.aiSecretId);
+      expect(read?.type).toBe("openai");
+      expect(read?.metadata).toEqual(props.metadata);
+      expect(revealed(read)).not.toContain(first);
       yield* expectFound(Braintrust.AiSecret.lookup({ name: secret.name }), secret);
 
       const plan = yield* stack.plan(
@@ -63,9 +85,12 @@ test.provider(
       );
       expect(rotated.aiSecretId).toBe(secret.aiSecretId);
       expect(rotated.secretUpdatedAt).not.toBe(secret.secretUpdatedAt);
-      const afterRotate = yield* getAiSecret(secret.aiSecretId);
-      expect(afterRotate.type).toBe("openai");
-      expect(afterRotate.metadata).toEqual(props.metadata);
+      expect(revealed(rotated)).not.toContain(second);
+      yield* eventually(getAiSecret(secret.aiSecretId), (afterRotate) => {
+        expect(afterRotate.type).toBe("openai");
+        expect(afterRotate.metadata).toEqual(props.metadata);
+        expect(revealed(afterRotate)).not.toContain(second);
+      });
 
       // Settings are replaced, not merged: `region` goes.
       const changed = yield* stack.deploy(
@@ -76,9 +101,12 @@ test.provider(
         }),
       );
       expect(changed.aiSecretId).toBe(secret.aiSecretId);
-      const afterChange = yield* getAiSecret(secret.aiSecretId);
-      expect(afterChange.type).toBe("anthropic");
-      expect(afterChange.metadata).toEqual({ api_base: "https://b.example.com" });
+      expect(changed.type).toBe("anthropic");
+      expect(changed.metadata).toEqual({ api_base: "https://b.example.com" });
+      yield* eventually(getAiSecret(secret.aiSecretId), (afterChange) => {
+        expect(afterChange.type).toBe("anthropic");
+        expect(afterChange.metadata).toEqual({ api_base: "https://b.example.com" });
+      });
 
       const cleared = yield* stack.deploy(
         Braintrust.AiSecret("AiSecret", { secret: Redacted.make(second) }),
