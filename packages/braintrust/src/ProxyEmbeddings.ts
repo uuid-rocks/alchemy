@@ -23,7 +23,9 @@ export type ProxyEmbeddingsClient = (
  * secret's key.
  *
  * The host gets its own Braintrust service account and token, with `read` on
- * this AI secret only, so the proxy can use this provider key and no other.
+ * this AI secret. The proxy uses only AI secrets the host's token can read,
+ * and picks among them by `model`, so bind one secret per provider: a host
+ * can't choose between two secrets that serve the same model.
  * Braintrust has no workload identity, so the token is created at deploy and
  * bound into the host as a secret; destroying the host revokes it.
  *
