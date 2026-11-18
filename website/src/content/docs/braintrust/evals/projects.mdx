@@ -61,11 +61,19 @@ A **project group** is a set of projects that share access. An ACL on the group 
 
 <Tree
   nodes={[
-    { id: "org", label: "acme", type: "organization", icon: "brand:braintrust" },
-    { id: "team", label: "SupportTeam", type: "project group", parent: "org", dashed: true, icon: "folders" },
+    {
+      id: "org", label: "acme", type: "organization", icon: "brand:braintrust",
+      areas: ["team team research"],
+      phoneAreas: ["team", "research"],
+    },
+    {
+      id: "team", label: "SupportTeam", type: "project group", parent: "org", dashed: true, icon: "folders",
+      areas: ["escalations refunds"],
+      phoneAreas: ["escalations refunds"],
+    },
     { id: "escalations", label: "escalations", type: "project", parent: "team", icon: "folder" },
     { id: "refunds", label: "refunds", type: "project", parent: "team", icon: "folder" },
-    { id: "research", label: "research", type: "project", parent: "org", side: true, icon: "folder" },
+    { id: "research", label: "research", type: "project", parent: "org", icon: "folder" },
   ]}
   scopes={[{ on: "team", label: "Acl: SupportReaders · read" }]}
   caption="Both projects in the SupportTeam group are readable by SupportReaders, through one ACL on the group. The research project isn't in the group, so the grant doesn't reach it."

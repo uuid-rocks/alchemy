@@ -12,11 +12,15 @@ Every API call carries a key, and a key acts as one member. A user's **API key**
 
 <Tree
   nodes={[
-    { id: "org", label: "acme", type: "organization", icon: "brand:braintrust" },
+    {
+      id: "org", label: "acme", type: "organization", icon: "brand:braintrust",
+      areas: ["ada ci support", "ada ci triage"],
+      phoneAreas: ["ada ci", "support triage"],
+    },
     { id: "ada", label: "ada", type: "member", parent: "org", icon: "user", specs: [["key", "sk-…"]] },
     { id: "ci", label: "ci", type: "service account", parent: "org", tone: "accent", icon: "bot", specs: [["token", "bt-st-…"]] },
-    { id: "support", label: "support", type: "project", parent: "org", side: true, icon: "folder" },
-    { id: "triage", label: "triage", type: "project", parent: "org", side: true, icon: "folder" },
+    { id: "support", label: "support", type: "project", parent: "org", icon: "folder" },
+    { id: "triage", label: "triage", type: "project", parent: "org", icon: "folder" },
   ]}
   scopes={[{ on: "org", label: "every key reaches one organization" }]}
   caption="An organization holds its members and projects. Each key acts as one member: ada's API key has her access, and the ci service account's token has only what ci is granted."

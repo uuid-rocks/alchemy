@@ -11,12 +11,20 @@ Grants flow down. Objects nest, organization over project over the project's log
 
 <Tree
   nodes={[
-    { id: "org", label: "acme", type: "organization", icon: "brand:braintrust" },
-    { id: "support", label: "support", type: "project", parent: "org", icon: "folder" },
+    {
+      id: "org", label: "acme", type: "organization", icon: "brand:braintrust",
+      areas: ["support support triage"],
+      phoneAreas: ["support", "triage"],
+    },
+    {
+      id: "support", label: "support", type: "project", parent: "org", icon: "folder",
+      areas: ["logs tickets baseline"],
+      phoneAreas: ["logs tickets", "baseline baseline"],
+    },
     { id: "logs", label: "logs", type: "project logs", parent: "support", icon: "scroll-text" },
     { id: "tickets", label: "tickets", type: "dataset", parent: "support", icon: "database" },
     { id: "baseline", label: "baseline", type: "experiment", parent: "support", icon: "flask-conical" },
-    { id: "triage", label: "triage", type: "project", parent: "org", side: true, icon: "folder" },
+    { id: "triage", label: "triage", type: "project", parent: "org", icon: "folder" },
   ]}
   scopes={[{ on: "support", label: "Acl: Reviewers · read" }]}
   caption="An ACL on the support project lets the Reviewers group read its logs, datasets and experiments. It grants nothing on triage."
