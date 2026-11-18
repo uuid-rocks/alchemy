@@ -239,6 +239,9 @@
       "path": "./examples/cloudflare-federated-api/tsconfig.json"
     },
     {
+      "path": "./examples/braintrust-worker/tsconfig.json"
+    },
+    {
       "path": "./examples/gcp-cloud-function/tsconfig.json"
     },
     {

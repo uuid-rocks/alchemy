@@ -2001,6 +2001,28 @@ importers:
         specifier: workspace:*
         version: link:../../packages/alchemy-test
 
+  examples/braintrust-worker:
+    dependencies:
+      '@alchemy.run/braintrust':
+        specifier: workspace:*
+        version: link:../../packages/braintrust
+      '@alchemy.run/cloudflare':
+        specifier: workspace:*
+        version: link:../../packages/cloudflare
+      '@distilled.cloud/braintrust':
+        specifier: workspace:*
+        version: link:../../submodules/distilled/packages/braintrust
+      alchemy:
+        specifier: workspace:*
+        version: link:../../packages/alchemy
+      effect:
+        specifier: 4.1.4
+        version: 4.1.4
+    devDependencies:
+      '@alchemy.run/test':
+        specifier: workspace:*
+        version: link:../../packages/alchemy-test
+
   examples/cloudflare-agents:
     dependencies:
       '@modelcontextprotocol/sdk':
