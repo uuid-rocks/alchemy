@@ -13,6 +13,7 @@ import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
+import * as Scheduler from "effect/Scheduler";
 import * as Stream from "effect/Stream";
 
 /**
@@ -113,6 +114,29 @@ const readWriterInit = (b: Bound) =>
         Braintrust.ReadWriteDatasetHttp,
       ),
     ),
+  );
+
+/**
+ * The reader's bindings, registered concurrently with the scheduler yielding
+ * after every operation, so they interleave wherever they can.
+ */
+const concurrentInit = (b: Bound) =>
+  Effect.all(
+    [
+      Braintrust.ReadProjectLogs(b.project),
+      Braintrust.ReadExperiment(b.experiment),
+      Braintrust.ReadDataset(b.dataset),
+    ],
+    { concurrency: "unbounded" },
+  ).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        Braintrust.ReadProjectLogsHttp,
+        Braintrust.ReadExperimentHttp,
+        Braintrust.ReadDatasetHttp,
+      ),
+    ),
+    Effect.provideService(Scheduler.MaxOpsBeforeYield, 1),
   );
 
 /** One binding per operation, plus the eval and proxy bindings. */
@@ -329,6 +353,7 @@ let deployed: {
   writer: Env;
   readWriter: Env;
   ops: Env;
+  concurrent: Env;
 };
 
 describe("Braintrust bindings", { tags }, () => {
@@ -354,6 +379,7 @@ describe("Braintrust bindings", { tags }, () => {
             writer: yield* host("WriterHost", writerInit(bound)),
             readWriter: yield* host("ReadWriterHost", readWriterInit(bound)),
             ops: yield* host("OpsHost", opsInit(bound)),
+            concurrent: yield* host("ConcurrentHost", concurrentInit(bound)),
           };
         }),
       );
@@ -418,6 +444,22 @@ describe("Braintrust bindings", { tags }, () => {
           expect(accounts.size).toBe(4);
           expect(reader.BRAINTRUST_API_URL).toBe(Braintrust.DEFAULT_API_URL);
           expect(Redacted.isRedacted(reader.BRAINTRUST_API_KEY)).toBe(true);
+        }),
+      { tags, timeout: 120_000 },
+    );
+
+    test.provider(
+      "grants every object bound concurrently on one host",
+      (_stack) =>
+        Effect.gen(function* () {
+          const { ids, concurrent } = deployed;
+          expect((yield* grantsOf(concurrent)).grants).toEqual(
+            [
+              `dataset:${ids.datasetId}:read`,
+              `experiment:${ids.experimentId}:read`,
+              `project_log:${ids.projectId}:read`,
+            ].sort(),
+          );
         }),
       { tags, timeout: 120_000 },
     );

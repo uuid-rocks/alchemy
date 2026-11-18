@@ -40,6 +40,7 @@ import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
+import * as Scheduler from "effect/Scheduler";
 import { ServiceAccount } from "./ServiceAccount.ts";
 import { ServiceToken } from "./ServiceToken.ts";
 
@@ -98,13 +99,15 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
         // Nothing known at plan time tells two bound objects apart (a
         // lookup's props can be closures over different values), so each
         // binding gets its own sid by position and the account dedupes the
-        // grants once their ids resolve.
-        const position = Option.isSome(stack)
-          ? (stack.value.bindings[account.FQN]?.length ?? 0)
-          : 0;
-        yield* account.bind(`Grant${position}`, {
-          grants: grants.map((grant) => ({ ...grant, objectId })),
-        });
+        // grants once their ids resolve. The position is read and taken in
+        // one step: a scheduler yield in between lets a concurrent binding
+        // take the same sid, and core keeps only one row per sid.
+        yield* Effect.suspend(() =>
+          account.bind(
+            `Grant${Option.isSome(stack) ? (stack.value.bindings[account.FQN]?.length ?? 0) : 0}`,
+            { grants: grants.map((grant) => ({ ...grant, objectId })) },
+          ),
+        ).pipe(Effect.provideService(Scheduler.PreventSchedulerYield, true));
         return yield* makeToken("BraintrustServiceToken", {
           serviceAccountId: account.serviceAccountId,
         });
