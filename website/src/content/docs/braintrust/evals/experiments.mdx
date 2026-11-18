@@ -57,12 +57,32 @@ To compare every run in the project with it, set `settings.baselineExperimentId`
 
 `LaunchEval` lets a Worker or Function run an eval in a project: Braintrust runs the task over the data, scores it, records a new experiment and returns its summary. The host gets its own service token, with `read` on the project, which covers the datasets, prompts and functions in it, and `create` on its experiments.
 
-This Worker finds its data and task by name: the `tickets` dataset and the `summarize-ticket` prompt in the `support-bot` project. Declare all three with those fixed names; the project is:
+This Worker finds its data and task by name: the `tickets` dataset and the `summarize-ticket` prompt in the `support-bot` project. Declare all three with those fixed names, and yield `Evals` in your Stack:
 
 ```typescript title="src/evals.ts"
 import * as Braintrust from "@alchemy.run/braintrust";
+import * as Effect from "effect/Effect";
 
 export const Support = Braintrust.Project("Support", { name: "support-bot" });
+
+export const Evals = Effect.gen(function* () {
+  const project = yield* Support;
+  yield* Braintrust.Dataset("Tickets", { projectId: project.projectId, name: "tickets" });
+  yield* Braintrust.Prompt("Summarize", {
+    projectId: project.projectId,
+    slug: "summarize-ticket",
+    promptData: {
+      prompt: {
+        type: "chat",
+        messages: [
+          { role: "system", content: "Summarize the ticket in one sentence." },
+          { role: "user", content: "{{input}}" },
+        ],
+      },
+      options: { model: "gpt-4o-mini" },
+    },
+  });
+});
 ```
 
 ```typescript title="src/api.ts"
@@ -76,7 +96,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   { main: import.meta.url },
   Effect.gen(function* () {
-    const launch = yield* Braintrust.LaunchEval(yield* Support);
+    const project = yield* Support;
+    const launch = yield* Braintrust.LaunchEval(project);
     return {
       fetch: Effect.gen(function* () {
         const summary = yield* launch({

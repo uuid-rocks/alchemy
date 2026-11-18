@@ -14,13 +14,24 @@ import PackageManagers from "../../../components/PackageManagers.astro";
 
 <PackageManagers add="@alchemy.run/braintrust" />
 
-Register the provider next to your cloud's:
+Then add `Braintrust.providers()` next to your cloud's providers:
 
 ```typescript
 // alchemy.run.ts
 import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 
-providers: Layer.mergeAll(Cloudflare.providers(), Braintrust.providers()),
+export default Alchemy.Stack(
+  "App",
+  {
+    providers: Layer.mergeAll(Cloudflare.providers(), Braintrust.providers()),
+    state: Alchemy.localState(),
+  },
+  Effect.void,
+);
 ```
 
 ## Choose a key
