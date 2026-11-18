@@ -15,8 +15,9 @@ export interface OrganizationSettingsProps {
   imageRenderingMode?: braintrust.ImageRenderingMode;
 }
 
+/** Only the settings the props have managed are captured. */
 interface Captured {
-  imageRenderingMode: braintrust.ImageRenderingMode;
+  imageRenderingMode?: braintrust.ImageRenderingMode;
 }
 
 export interface OrganizationSettingsAttributes {
@@ -32,7 +33,10 @@ export interface OrganizationSettingsAttributes {
   proxyUrl: string | undefined;
   /** URL of the organization's realtime service. */
   realtimeUrl: string | undefined;
-  /** The settings before Alchemy first changed them; restored on destroy. */
+  /**
+   * Each managed setting as it was before the props first set it; only these
+   * are restored on destroy.
+   */
   original: Captured;
 }
 
@@ -52,8 +56,9 @@ export type OrganizationSettingsLookup = Record<string, never>;
  * Settings of the Braintrust organization the credentials belong to. Only
  * the settings you declare are changed.
  *
- * The organization always exists, so this resource captures the settings
- * it finds on first deploy and puts them back on destroy. Braintrust can't
+ * The organization always exists, so this resource captures each setting
+ * as it finds it when the props first set it, and puts those back on
+ * destroy. A setting never declared is never restored. Braintrust can't
  * set a setting back to "unset", so an unset `imageRenderingMode` is
  * restored as `auto`, which behaves the same. See
  * [Organizations](https://www.braintrust.dev/docs/guides/access-control).
@@ -171,22 +176,25 @@ export const OrganizationSettingsProvider = () =>
     OrganizationSettings,
     Effect.gen(function* () {
       return {
-        stables: ["orgId", "original"],
+        stables: ["orgId"],
         nuke: { singleton: true },
         list: () => Effect.succeed([]),
         lookup: Effect.fn(function* () {
           const org = yield* currentOrganization;
-          return toAttributes(org, { imageRenderingMode: imageModeOf(org) });
+          return toAttributes(org, {});
         }),
         read: Effect.fn(function* ({ output }) {
           const org = yield* observe(output?.orgId);
           if (!org) return undefined;
-          return toAttributes(org, output?.original ?? { imageRenderingMode: imageModeOf(org) });
+          return toAttributes(org, output?.original ?? {});
         }),
         reconcile: Effect.fn(function* ({ news, output, session }) {
           // Observe
           const org = (yield* observe(output?.orgId)) ?? (yield* currentOrganization);
-          const original = output?.original ?? { imageRenderingMode: imageModeOf(org) };
+          const original: Captured = { ...output?.original };
+          if (news.imageRenderingMode !== undefined) {
+            original.imageRenderingMode ??= imageModeOf(org);
+          }
           // Sync only what is declared, against the observed settings.
           if (
             news.imageRenderingMode !== undefined &&

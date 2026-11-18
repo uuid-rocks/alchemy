@@ -47,10 +47,7 @@ test.provider(
       const changed = yield* currentOrg;
       expect(changed.image_rendering_mode).toBe(target);
       expect(snapshot(changed)).toEqual(snapshot(before));
-      yield* expectFound(Braintrust.OrganizationSettings.lookup({}), {
-        ...settings,
-        original: { imageRenderingMode: target },
-      });
+      yield* expectFound(Braintrust.OrganizationSettings.lookup({}), { ...settings, original: {} });
 
       const plan = yield* stack.plan(
         Braintrust.OrganizationSettings("Settings", { imageRenderingMode: target }),
@@ -70,6 +67,39 @@ test.provider(
         expect(after.image_rendering_mode ?? "auto").toBe(beforeMode);
         expect(snapshot(after)).toEqual(snapshot(before));
       });
+    }),
+  { tags, exclusive: "braintrust:org-settings", timeout: 120_000 },
+);
+
+test.provider(
+  "a setting never declared is not captured or restored on destroy",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+      const before = yield* currentOrg;
+      const beforeMode = before.image_rendering_mode ?? "auto";
+      const changed = beforeMode === "click_to_load" ? "blocked" : "click_to_load";
+
+      const settings = yield* stack.deploy(Braintrust.OrganizationSettings("Settings", {}));
+      expect(settings.original).toEqual({});
+
+      // Changed in the UI after the deploy: not this stack's to undo.
+      yield* braintrust
+        .updateOrganization({ organization_id: before.id, image_rendering_mode: changed })
+        .pipe(
+          Effect.andThen(stack.destroy()),
+          Effect.andThen(
+            eventually(currentOrg, (after) => {
+              expect(after.image_rendering_mode).toBe(changed);
+            }),
+          ),
+          // The test changed the organization by hand, so it puts it back.
+          Effect.ensuring(
+            braintrust
+              .updateOrganization({ organization_id: before.id, image_rendering_mode: beforeMode })
+              .pipe(Effect.orDie),
+          ),
+        );
     }),
   { tags, exclusive: "braintrust:org-settings", timeout: 120_000 },
 );
