@@ -1,0 +1,89 @@
+---
+title: Organization and keys
+description: How a Braintrust organization holds your projects and members, which key Alchemy deploys with, and how your Stack creates service accounts and tokens with narrower access.
+---
+
+import PackageManagers from "../../../../components/PackageManagers.astro";
+import Tree from "../../../../components/diagrams/Tree.astro";
+
+Everything in Braintrust belongs to an **organization**: its projects and everything in them, its members, the AI provider keys it calls models with, and its bill. Nothing in one organization can see another's data.
+
+Every API call carries a key, and a key acts as one member. A user's **API key** (`sk-…`) acts as that person. A **service token** (`bt-st-…`) acts as a **service account**, a member that isn't a person and has only the access it's granted.
+
+<Tree
+  nodes={[
+    { id: "org", label: "acme", type: "organization", icon: "brand:braintrust" },
+    { id: "ada", label: "ada", type: "member", parent: "org", icon: "user", specs: [["key", "sk-…"]] },
+    { id: "ci", label: "ci", type: "service account", parent: "org", tone: "accent", icon: "bot", specs: [["token", "bt-st-…"]] },
+    { id: "support", label: "support", type: "project", parent: "org", side: true, icon: "folder" },
+    { id: "triage", label: "triage", type: "project", parent: "org", side: true, icon: "folder" },
+  ]}
+  scopes={[{ on: "org", label: "every key reaches one organization" }]}
+  caption="An organization holds its members and projects. Each key acts as one member: ada's API key has her access, and the ci service account's token has only what ci is granted."
+/>
+
+## Sign in with a profile
+
+Alchemy deploys with the key in your [profile](/environments/profiles). Add Braintrust to your `default` profile and paste a key:
+
+<PackageManagers run="alchemy profile edit --add Braintrust" />
+
+A **service token** is the better choice for most Stacks: Braintrust only lets a service token create other service tokens, and bindings create one for each Worker or Function. Your own **API key** works for a Stack of projects, datasets, prompts and access control. Either way, the key's organization is where everything is created. See [Setup](/braintrust/setup).
+
+## One organization per environment
+
+A [stage](/environments/stages) decides what you deploy. The profile's key decides where. Keep production in its own organization, with its own members, AI keys and bill, and its own profile:
+
+<PackageManagers script={`{run} alchemy profile create prod
+{run} alchemy profile edit --profile prod --add Braintrust
+{run} alchemy deploy --stage prod --profile prod`} />
+
+Many stages can share a development organization, each with its own projects.
+
+## Service accounts and tokens
+
+A service that calls Braintrust, like CI running evals, needs a key of its own, with access to only what it uses. Declare the service account, its token, and an ACL that lets it write one project:
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const ci = yield* Braintrust.ServiceAccount("CI", {});
+const token = yield* Braintrust.ServiceToken("CIToken", {
+  serviceAccountId: ci.serviceAccountId,
+  expiresInSeconds: 90 * 24 * 60 * 60,
+});
+yield* Braintrust.Acl("CiWritesSupport", {
+  objectType: "project",
+  objectId: project.projectId,
+  userId: ci.serviceAccountId,
+  permission: "update",
+});
+```
+
+`token.key` is the `bt-st-…` key, `Redacted`, so it goes straight into a [GitHub Actions secret](/github/actions-config) without anyone copying it. Braintrust returns a key only when it's created, so changing any prop of the token creates a new key, and destroying the token cancels it. Rename the token to rotate its key.
+
+Without `expiresInSeconds`, the token expires when the token you deploy with does, or never if yours doesn't.
+
+## Tokens your runtimes get for you
+
+Braintrust has no workload identity, so a Worker or Function can't prove who it is. Each [binding](/braintrust/observability/logs#log-from-a-worker) gives its host its own service account and token instead, with one ACL per permission on the object it binds, and passes the token in as `BRAINTRUST_API_KEY`. Destroying the host cancels the token and removes the account.
+
+## Invite people
+
+Invite a person by email, and give them access through a group:
+
+```typescript title="alchemy.run.ts"
+const ada = yield* Braintrust.OrganizationMember("Ada", { email: "ada@example.com" });
+const annotators = yield* Braintrust.Group("Annotators", { memberUserIds: [ada.userId] });
+```
+
+Set `sendInviteEmail: true` to email them the invite. Destroying the member removes them from the organization. Someone already in the organization is refused unless you adopt them, so a destroy never removes people Alchemy didn't invite.
+
+The organization's own settings are a resource too, `Braintrust.OrganizationSettings`. It changes only the settings you declare, and puts back what it found when destroyed.
+
+## In CI
+
+With `CI=true`, Alchemy skips the profile and reads `BRAINTRUST_API_KEY` from the environment, plus `BRAINTRUST_API_URL` for a self-hosted data plane. See [CI](/environments/ci).
+
+## Next
+
+Who can do what inside the organization is in [Roles, groups and ACLs](/braintrust/access/access-control). Model provider keys and the variables your functions read are in [AI keys and secrets](/braintrust/access/secrets).
