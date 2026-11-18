@@ -148,4 +148,4 @@ const existing = Braintrust.Project.lookup({ name: "My Project" });
 const greeting = Braintrust.Prompt.lookup({ projectId: existing.projectId, slug: "greeting" });
 ```
 
-Prompts carry no tags, so one that already exists under a fixed slug is refused unless you adopt it.
+A prompt's `tags` are yours to set, so Alchemy has no label to recognize its own prompts by. Declaring a prompt under a `slug` that already exists is refused unless you adopt it. `lookup` only reads the prompt, so it needs no adoption.
