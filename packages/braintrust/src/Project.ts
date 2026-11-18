@@ -10,8 +10,9 @@ import { braintrustName, isGeneratedName, unlessDeleted } from "./internal/Owner
 import type { Providers } from "./Providers.ts";
 
 /**
- * Project-wide settings. Only the settings the props list are compared;
- * any other setting, including ones made in the Braintrust UI, is kept.
+ * Project-wide settings. Every setting listed here is managed: one left out
+ * is reset to Braintrust's default. Braintrust settings not listed here are
+ * kept.
  */
 export interface ProjectSettings {
   /**
@@ -92,9 +93,10 @@ export interface ProjectProps {
   /** Textual description of the project. Removing it clears the description. */
   description?: string;
   /**
-   * Project settings. Only the settings set here are managed; removing one
-   * resets it to Braintrust's default. Left unset, settings are not
-   * managed.
+   * Project settings. Once set, every setting in {@link ProjectSettings} is
+   * managed: one left out, even one changed in the Braintrust UI, is reset
+   * to Braintrust's default, and so is every setting when this is removed.
+   * Never set, settings are not managed.
    */
   settings?: ProjectSettings;
   /**

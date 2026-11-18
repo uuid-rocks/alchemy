@@ -40,7 +40,7 @@ const triage = yield* Braintrust.Project("Triage", {
 });
 ```
 
-`blindReviews` hides other reviewers' scores until a reviewer has submitted their own. `baselineExperimentId` sets the experiment every run is compared with by default. Settings made in the UI that you don't declare are left alone, and removing one you did declare puts back Braintrust's default.
+`blindReviews` hides other reviewers' scores until a reviewer has submitted their own. `baselineExperimentId` sets the experiment every run is compared with by default. Once you declare `settings`, Alchemy manages all of them: a setting you leave out goes back to Braintrust's default, even one turned on in the UI. Without `settings`, Alchemy leaves the project's settings alone.
 
 Every project setting is declared the same way, including which fields identify your users and sessions, where Pattern alerts go, and the default preprocessor:
 
