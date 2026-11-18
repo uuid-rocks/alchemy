@@ -70,7 +70,7 @@ export interface PromptAttributes {
    * every write; pass it as `version` to load this exact version.
    */
   version: string;
-  /** When the prompt was created (ISO 8601). */
+  /** When the current version was written (ISO 8601). */
   created: string | undefined;
 }
 

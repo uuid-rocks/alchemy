@@ -33,8 +33,7 @@ export interface FunctionProps {
   /**
    * Slug the function is invoked by, unique within the project. If
    * omitted, a unique slug is generated from the stack, stage and logical
-   * ID. Braintrust can't change a function's slug, so changing it replaces
-   * the function.
+   * ID. Changing it replaces the function.
    */
   slug?: string;
   /**
@@ -90,7 +89,7 @@ export interface FunctionAttributes {
    * every write; pass it as `version` to invoke this exact version.
    */
   version: string;
-  /** When the function was created (ISO 8601). */
+  /** When the current version was written (ISO 8601). */
   created: string | undefined;
 }
 
