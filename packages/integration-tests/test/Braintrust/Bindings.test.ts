@@ -316,7 +316,11 @@ const versionAfter = (
     return record!._xact_id;
   });
 
-/** The grants on a host's service account, as `<object type>:<id>:<permission>`. */
+/**
+ * The grants on a host's service account, as `<object type>:<id>:<permission>`.
+ * Only direct permissions: Braintrust adds an Owner role ACL on each
+ * experiment a host launches.
+ */
 const grantsOf = (env: Env) =>
   Effect.gen(function* () {
     const key = Redacted.value(keyOf(env));
@@ -329,6 +333,7 @@ const grantsOf = (env: Env) =>
     return {
       serviceAccountId: token!.service_account_id!,
       grants: Array.from(acls)
+        .filter((acl) => acl.permission && !acl.role_id)
         .map(
           (acl) =>
             `${acl.object_type}:${acl.object_id}:${acl.permission}${acl.restrict_object_type ? `:${acl.restrict_object_type}` : ""}`,
@@ -1140,22 +1145,41 @@ describe("Host lifecycle", { tags }, () => {
       Effect.gen(function* () {
         yield* stack.destroy();
         const project = Braintrust.Project("Redeployed", {});
-        const program = Effect.gen(function* () {
-          const bound = yield* project;
-          const env = yield* host(
-            "RedeployHost",
-            Braintrust.InsertProjectLogs(bound).pipe(
-              Effect.provide(Braintrust.InsertProjectLogsHttp),
-            ),
-          );
-          return { projectId: bound.projectId, env };
-        });
+        // Bindings register in no fixed order across deploys, so `flipped`
+        // binds the same two in the other order.
+        const program = (flipped: boolean) =>
+          Effect.gen(function* () {
+            const bound = yield* project;
+            const insert = Braintrust.InsertProjectLogs(bound);
+            const read = Braintrust.ReadProjectLogs(bound);
+            const env = yield* host(
+              "RedeployHost",
+              Effect.all(flipped ? [read, insert] : [insert, read]).pipe(
+                Effect.provide(
+                  Layer.mergeAll(Braintrust.InsertProjectLogsHttp, Braintrust.ReadProjectLogsHttp),
+                ),
+              ),
+            );
+            return { projectId: bound.projectId, env };
+          });
 
-        const first = yield* stack.deploy(program);
+        const first = yield* stack.deploy(program(false));
         const before = yield* grantsOf(first.env);
-        expect(before.grants).toEqual([`project_log:${first.projectId}:update`]);
+        expect(before.grants).toEqual([
+          `project_log:${first.projectId}:read`,
+          `project_log:${first.projectId}:update`,
+        ]);
 
-        const second = yield* stack.deploy(program);
+        for (const flipped of [false, true]) {
+          const plan = yield* stack.plan(program(flipped));
+          expect(
+            Object.entries(plan.resources)
+              .filter(([, node]) => node?.action !== "noop")
+              .map(([fqn, node]) => `${fqn}: ${node?.action}`),
+          ).toEqual([]);
+        }
+
+        const second = yield* stack.deploy(program(false));
         expect(yield* grantsOf(second.env)).toEqual(before);
         expect(Redacted.value(keyOf(second.env)) === Redacted.value(keyOf(first.env))).toBe(true);
 
@@ -1172,9 +1196,9 @@ describe("Host lifecycle", { tags }, () => {
           ),
         });
         const deployed = yield* owned;
-        expect([deployed.acls.length, deployed.tokens.length]).toEqual([1, 1]);
+        expect([deployed.acls.length, deployed.tokens.length]).toEqual([2, 1]);
 
-        // Swapping the binding revokes the grant only it needed, on the same account.
+        // Dropping a binding revokes the grant only it needed, on the same account.
         const swapped = yield* stack.deploy(
           Effect.gen(function* () {
             const bound = yield* project;
