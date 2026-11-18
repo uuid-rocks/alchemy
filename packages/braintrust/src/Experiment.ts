@@ -305,9 +305,11 @@ export const ExperimentProvider = () =>
       return {
         stables: ["experimentId", "projectId"],
         diff: Effect.fn(function* ({ news, olds, output }) {
-          if (!isResolved(news)) return undefined;
-          if (news.projectId !== olds.projectId) return { action: "replace" } as const;
+          // An id that resolves only at apply belongs to a new parent, and apply
+          // doesn't diff again, so the move is planned as a replace now.
+          if (!isResolved(news.projectId)) return { action: "replace" } as const;
           // An adoption's `olds` are the new props; `output` is what it found.
+          // Checked before the other props resolve, for the same reason.
           const unlinked = (key: "datasetId" | "parametersId") =>
             (output?.[key] ?? olds[key]) !== undefined && news[key] === undefined;
           if (unlinked("datasetId") || unlinked("parametersId")) {
@@ -315,9 +317,12 @@ export const ExperimentProvider = () =>
             // experiment again, so it goes first.
             return {
               action: "replace",
-              deleteFirst: news.name !== undefined && news.name === olds.name,
+              deleteFirst:
+                news.name !== undefined && (!isResolved(news.name) || news.name === olds.name),
             } as const;
           }
+          if (!isResolved(news)) return undefined;
+          if (news.projectId !== olds.projectId) return { action: "replace" } as const;
         }),
         lookup: Effect.fn(function* ({ projectId, name }) {
           const experiment = yield* findByName(projectId, name);

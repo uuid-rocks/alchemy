@@ -234,19 +234,25 @@ test.provider(
 );
 
 test.provider(
-  "unlinking the dataset or moving to another project replaces the experiment",
+  "unlinking the dataset or moving to another project replaces the experiment, even when a prop resolves only at apply",
   (stack) =>
     Effect.gen(function* () {
       yield* stack.destroy();
 
       // Both projects and the dataset stay deployed across the replacements.
-      const program = (target: "A" | "B", linked: boolean) =>
+      // Project C, and the Label project whose id becomes the description,
+      // are created by the deploy that uses them, so their ids are unknown
+      // at plan time.
+      const program = (target: "A" | "B" | "C", linked: boolean, labelled = false) =>
         Effect.gen(function* () {
           const a = yield* Braintrust.Project("A", {});
           const b = yield* Braintrust.Project("B", {});
+          const c = target === "C" ? yield* Braintrust.Project("C", {}) : undefined;
+          const label = labelled ? yield* Braintrust.Project("Label", {}) : undefined;
           const dataset = yield* Braintrust.Dataset("Dataset", { projectId: a.projectId });
           return yield* Braintrust.Experiment("Moving", {
-            projectId: target === "A" ? a.projectId : b.projectId,
+            projectId: target === "A" ? a.projectId : target === "B" ? b.projectId : c!.projectId,
+            description: label?.projectId,
             datasetId: linked ? dataset.datasetId : undefined,
           });
         });
@@ -254,7 +260,11 @@ test.provider(
       const linked = yield* stack.deploy(program("A", true));
       expect(linked.datasetId).toBeTruthy();
 
-      const unlinked = yield* stack.deploy(program("A", false));
+      // Apply doesn't diff again, so the plan must already replace.
+      expect((yield* stack.plan(program("A", false, true))).resources.Moving.action).toBe(
+        "replace",
+      );
+      const unlinked = yield* stack.deploy(program("A", false, true));
       expect(unlinked.experimentId).not.toBe(linked.experimentId);
       expect(unlinked.datasetId).toBeUndefined();
       yield* expectExperimentGone(linked.experimentId);
@@ -266,8 +276,13 @@ test.provider(
       });
       yield* expectExperimentGone(unlinked.experimentId);
 
-      yield* stack.destroy();
+      expect((yield* stack.plan(program("C", false))).resources.Moving.action).toBe("replace");
+      const created = yield* stack.deploy(program("C", false));
+      expect(created.experimentId).not.toBe(moved.experimentId);
       yield* expectExperimentGone(moved.experimentId);
+
+      yield* stack.destroy();
+      yield* expectExperimentGone(created.experimentId);
     }),
   { tags, timeout: 120_000 },
 );
