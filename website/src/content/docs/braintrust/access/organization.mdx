@@ -61,11 +61,13 @@ yield* Braintrust.Acl("CiWritesSupport", {
 
 `token.key` is the `bt-st-…` key, `Redacted`, so it goes straight into a [GitHub Actions secret](/github/actions-config) without anyone copying it. Braintrust returns a key only when it's created, so changing any prop of the token creates a new key, and destroying the token cancels it. Rename the token to rotate its key.
 
-Without `expiresInSeconds`, the token expires when the token you deploy with does, or never if yours doesn't. A deploy in the last tenth of a token's lifetime creates a new key.
+Without `expiresInSeconds`, the token expires a minute before the token you deploy with, or never if yours doesn't. A deploy in the last tenth of a token's lifetime creates a new key.
 
 ## Tokens your runtimes get for you
 
 Braintrust has no workload identity, so a Worker or Function can't prove who it is. Each [binding](/braintrust/observability/logs#log-from-a-worker) gives its host its own service account and token instead, with one ACL per permission on the object it binds, and passes the token in as `BRAINTRUST_API_KEY`. Destroying the host cancels the token and removes the account.
+
+The host's token has no `expiresInSeconds`, so it follows the rule above. Braintrust applies new ACLs a few seconds after they're created, so a freshly deployed host's first calls can fail with `NotFoundOrForbidden`. Retry them for up to about 20 seconds.
 
 ## Invite people
 
