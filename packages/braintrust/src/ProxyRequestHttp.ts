@@ -1,7 +1,7 @@
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import * as Layer from "effect/Layer";
 import { makeHttpBinding } from "./BraintrustBindings.ts";
-import { AI_SECRET_READ, aiSecretId } from "./ProxyHttp.ts";
+import { AI_SECRET_READ, aiSecretId } from "./internal/ProxyHttp.ts";
 import { ProxyRequest, type ProxyRequestClient } from "./ProxyRequest.ts";
 
 /**

@@ -5,7 +5,7 @@ import {
   EXPERIMENT_UPDATE,
   experimentClients,
   experimentId,
-} from "./ExperimentHttp.ts";
+} from "./internal/ExperimentHttp.ts";
 import { ReadWriteExperiment, type ReadWriteExperimentClient } from "./ReadWriteExperiment.ts";
 
 /**

@@ -1,7 +1,7 @@
 import * as Layer from "effect/Layer";
 import { makeHttpBinding } from "./BraintrustBindings.ts";
-import { EXPERIMENT_UPDATE, experimentClients, experimentId } from "./ExperimentHttp.ts";
 import { InsertExperimentEvents } from "./InsertExperimentEvents.ts";
+import { EXPERIMENT_UPDATE, experimentClients, experimentId } from "./internal/ExperimentHttp.ts";
 
 /**
  * HTTP implementation of {@link InsertExperimentEvents}: Braintrust's REST

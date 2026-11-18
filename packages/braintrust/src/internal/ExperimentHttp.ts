@@ -1,16 +1,16 @@
 /**
  * Shared scaffolding for the bindings on the experiment: the grants, and the
  * client methods each `<Op>Http.ts` and `Read`/`Write`/`ReadWrite` layer
- * picks from. NOT exported from `index.ts`.
+ * picks from. Lives in `internal/`, so the published package doesn't expose it.
  */
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import * as Effect from "effect/Effect";
-import type { BraintrustAuth, Grant } from "./BraintrustBindings.ts";
-import type { Experiment } from "./Experiment.ts";
-import type { ExperimentFeedbackClient } from "./ExperimentFeedback.ts";
-import type { FetchExperimentEventsClient } from "./FetchExperimentEvents.ts";
-import type { InsertExperimentEventsClient } from "./InsertExperimentEvents.ts";
-import type { SummarizeExperimentClient } from "./SummarizeExperiment.ts";
+import type { BraintrustAuth, Grant } from "../BraintrustBindings.ts";
+import type { Experiment } from "../Experiment.ts";
+import type { ExperimentFeedbackClient } from "../ExperimentFeedback.ts";
+import type { FetchExperimentEventsClient } from "../FetchExperimentEvents.ts";
+import type { InsertExperimentEventsClient } from "../InsertExperimentEvents.ts";
+import type { SummarizeExperimentClient } from "../SummarizeExperiment.ts";
 
 export const experimentId = (experiment: Experiment) => experiment.experimentId;
 

@@ -1,7 +1,7 @@
 import * as Layer from "effect/Layer";
 import { makeHttpBinding } from "./BraintrustBindings.ts";
 import { FetchProjectLogs } from "./FetchProjectLogs.ts";
-import { PROJECT_LOG_READ, projectClients, projectId } from "./ProjectLogsHttp.ts";
+import { PROJECT_LOG_READ, projectClients, projectId } from "./internal/ProjectLogsHttp.ts";
 
 /**
  * HTTP implementation of {@link FetchProjectLogs}: Braintrust's REST API

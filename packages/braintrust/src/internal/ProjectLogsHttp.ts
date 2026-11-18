@@ -1,15 +1,15 @@
 /**
  * Shared scaffolding for the bindings on the project's logs: the grants, and the
  * client methods each `<Op>Http.ts` and `Read`/`Write`/`ReadWrite` layer
- * picks from. NOT exported from `index.ts`.
+ * picks from. Lives in `internal/`, so the published package doesn't expose it.
  */
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import * as Effect from "effect/Effect";
-import type { BraintrustAuth, Grant } from "./BraintrustBindings.ts";
-import type { FetchProjectLogsClient } from "./FetchProjectLogs.ts";
-import type { InsertProjectLogsClient } from "./InsertProjectLogs.ts";
-import type { Project } from "./Project.ts";
-import type { ProjectLogFeedbackClient } from "./ProjectLogFeedback.ts";
+import type { BraintrustAuth, Grant } from "../BraintrustBindings.ts";
+import type { FetchProjectLogsClient } from "../FetchProjectLogs.ts";
+import type { InsertProjectLogsClient } from "../InsertProjectLogs.ts";
+import type { Project } from "../Project.ts";
+import type { ProjectLogFeedbackClient } from "../ProjectLogFeedback.ts";
 
 export const projectId = (project: Project) => project.projectId;
 

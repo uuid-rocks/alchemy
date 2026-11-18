@@ -1,7 +1,7 @@
 import * as Layer from "effect/Layer";
 import { makeHttpBinding } from "./BraintrustBindings.ts";
-import { EXPERIMENT_READ, experimentClients, experimentId } from "./ExperimentHttp.ts";
 import { FetchExperimentEvents } from "./FetchExperimentEvents.ts";
+import { EXPERIMENT_READ, experimentClients, experimentId } from "./internal/ExperimentHttp.ts";
 
 /**
  * HTTP implementation of {@link FetchExperimentEvents}: Braintrust's REST

@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { makeHttpBinding } from "./BraintrustBindings.ts";
-import { EXPERIMENT_READ, experimentClients, experimentId } from "./ExperimentHttp.ts";
+import { EXPERIMENT_READ, experimentClients, experimentId } from "./internal/ExperimentHttp.ts";
 import { ReadExperiment, type ReadExperimentClient } from "./ReadExperiment.ts";
 
 /**

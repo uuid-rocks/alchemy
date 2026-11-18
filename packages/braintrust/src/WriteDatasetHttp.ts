@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { makeHttpBinding } from "./BraintrustBindings.ts";
-import { DATASET_UPDATE, datasetClients, datasetId } from "./DatasetHttp.ts";
+import { DATASET_UPDATE, datasetClients, datasetId } from "./internal/DatasetHttp.ts";
 import { WriteDataset, type WriteDatasetClient } from "./WriteDataset.ts";
 
 /**

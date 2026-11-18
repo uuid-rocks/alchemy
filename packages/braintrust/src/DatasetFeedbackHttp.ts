@@ -1,7 +1,7 @@
 import * as Layer from "effect/Layer";
 import { makeHttpBinding } from "./BraintrustBindings.ts";
 import { DatasetFeedback } from "./DatasetFeedback.ts";
-import { DATASET_UPDATE, datasetClients, datasetId } from "./DatasetHttp.ts";
+import { DATASET_UPDATE, datasetClients, datasetId } from "./internal/DatasetHttp.ts";
 
 /**
  * HTTP implementation of {@link DatasetFeedback}: Braintrust's REST API with

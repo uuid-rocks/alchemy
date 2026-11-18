@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { makeHttpBinding } from "./BraintrustBindings.ts";
-import { PROJECT_LOG_READ, projectClients, projectId } from "./ProjectLogsHttp.ts";
+import { PROJECT_LOG_READ, projectClients, projectId } from "./internal/ProjectLogsHttp.ts";
 import { ReadProjectLogs, type ReadProjectLogsClient } from "./ReadProjectLogs.ts";
 
 /**

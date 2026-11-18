@@ -5,7 +5,7 @@ import {
   PROJECT_LOG_UPDATE,
   projectClients,
   projectId,
-} from "./ProjectLogsHttp.ts";
+} from "./internal/ProjectLogsHttp.ts";
 import { ReadWriteProjectLogs, type ReadWriteProjectLogsClient } from "./ReadWriteProjectLogs.ts";
 
 /**

@@ -1,8 +1,8 @@
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import * as Layer from "effect/Layer";
 import { makeHttpBinding } from "./BraintrustBindings.ts";
+import { AI_SECRET_READ, aiSecretId } from "./internal/ProxyHttp.ts";
 import { ProxyCompletions, type ProxyCompletionsClient } from "./ProxyCompletions.ts";
-import { AI_SECRET_READ, aiSecretId } from "./ProxyHttp.ts";
 
 /**
  * HTTP implementation of {@link ProxyCompletions}: Braintrust's REST API

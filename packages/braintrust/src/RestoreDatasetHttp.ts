@@ -1,6 +1,11 @@
 import * as Layer from "effect/Layer";
 import { makeHttpBinding } from "./BraintrustBindings.ts";
-import { DATASET_DELETE, DATASET_UPDATE, datasetClients, datasetId } from "./DatasetHttp.ts";
+import {
+  DATASET_DELETE,
+  DATASET_UPDATE,
+  datasetClients,
+  datasetId,
+} from "./internal/DatasetHttp.ts";
 import { RestoreDataset } from "./RestoreDataset.ts";
 
 /**
