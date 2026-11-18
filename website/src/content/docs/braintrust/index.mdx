@@ -86,6 +86,7 @@ export default Alchemy.Stack(
 
 - **User API keys.** The API can't create them; they are made in the Braintrust UI.
 - **Users.** People join by sign-up or invite. Use `Braintrust.OrganizationMember` to invite one.
+- **Temporary proxy credentials** (`POST /v1/proxy/credentials`). Braintrust's hosted API refuses the call (`405 Method POST not supported`). Bind a proxy binding to an AI secret instead.
 - **Endpoints not in Braintrust's OpenAPI spec**: BTQL queries, uploading bundled function code, and assigning objects to environments.
 
 ## The docs
