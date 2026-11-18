@@ -523,6 +523,10 @@ describe("Braintrust bindings", { tags }, () => {
       "is refused reads",
       Effect.gen(function* () {
         const { ids, writer } = deployed;
+        // A write that lands first shows the token works, so the refusal is the missing grant.
+        yield* inHost(writer, writerInit(bound), ({ dataset }) =>
+          settled(dataset.insert({ events: [{ id: "refused-read", input: "q" }] })),
+        );
         expect(
           yield* refusal(writer, braintrust.fetchDatasetEvents({ dataset_id: ids.datasetId })),
         ).toBe("NotFoundOrForbidden");
@@ -557,6 +561,10 @@ describe("Braintrust bindings", { tags }, () => {
       "is refused reads",
       Effect.gen(function* () {
         const { ids, writer } = deployed;
+        // A write that lands first shows the token works, so the refusal is the missing grant.
+        yield* inHost(writer, writerInit(bound), ({ logs }) =>
+          settled(logs.insert({ events: [{ id: "refused-read", input: "q" }] })),
+        );
         expect(
           yield* refusal(writer, braintrust.fetchProjectLogEvents({ project_id: ids.projectId })),
         ).toBe("NotFoundOrForbidden");
@@ -591,6 +599,10 @@ describe("Braintrust bindings", { tags }, () => {
       "is refused reads",
       Effect.gen(function* () {
         const { ids, writer } = deployed;
+        // A write that lands first shows the token works, so the refusal is the missing grant.
+        yield* inHost(writer, writerInit(bound), ({ experiment }) =>
+          settled(experiment.insert({ events: [{ id: "refused-read", input: "q" }] })),
+        );
         expect(
           yield* refusal(
             writer,
