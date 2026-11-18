@@ -21,7 +21,9 @@
  * Creating the token needs a deployer signed in with a service token
  * (`bt-st-…`); Braintrust refuses to create service tokens with a user API
  * key. Braintrust also refuses a token that outlives the deployer's, so a
- * host's token expires with an expiring deployer token.
+ * host's token expires with an expiring deployer token. Reading a host's
+ * grants lists the organization's ACLs, which needs the deployer to hold
+ * `read_acls` on the organization.
  */
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import {

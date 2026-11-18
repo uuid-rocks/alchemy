@@ -38,7 +38,7 @@ export default Alchemy.Stack(
 
 Resources are created in the organization the key belongs to.
 
-- **Service token** (`bt-st-…`): create a service account and a token for it in your organization's settings. It acts as the service account. Use one if your Stack creates service tokens, or uses bindings, which create a token for each Worker or Function: Braintrust refuses to create service tokens with a user API key.
+- **Service token** (`bt-st-…`): create a service account and a token for it in your organization's settings. It acts as the service account. Use one if your Stack creates service tokens, or uses bindings, which create a token for each Worker or Function: Braintrust refuses to create service tokens with a user API key. For bindings, the service account also needs the `read_acls` permission on the organization (as the Owners group has), to read each host's grants.
 - **API key** (`sk-…`): create one under **Settings → API keys**. It acts as you, and is enough for a Stack of projects, datasets, prompts and access control.
 
 ## Store it in a profile
