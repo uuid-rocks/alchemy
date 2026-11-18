@@ -127,6 +127,112 @@ test.provider(
   { tags, timeout: 120_000 },
 );
 
+/** Saved parameters, as `braintrust push` makes them. */
+const createParameters = (projectId: string, slug: string) =>
+  braintrust.createFunction({
+    project_id: projectId,
+    name: slug,
+    slug,
+    function_type: "parameters",
+    function_data: {
+      type: "parameters",
+      data: {},
+      __schema: { type: "object", properties: { model: { type: "string" } } },
+    },
+  });
+
+test.provider(
+  "pin the dataset version, saved parameters and repo info, change and clear them in place, and replace on unlinking the parameters",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const { project, dataset } = yield* stack.deploy(
+        Effect.gen(function* () {
+          const project = yield* Braintrust.Project("Project", {});
+          const dataset = yield* Braintrust.Dataset("Dataset", { projectId: project.projectId });
+          return { project, dataset };
+        }),
+      );
+      // Parameters are deleted with the project on destroy.
+      const first = yield* createParameters(
+        project.projectId,
+        testName("alchemy-test-bt-params-a"),
+      );
+      const second = yield* createParameters(
+        project.projectId,
+        testName("alchemy-test-bt-params-b"),
+      );
+
+      const program = (props: Omit<Braintrust.ExperimentProps, "projectId" | "datasetId">) =>
+        Effect.gen(function* () {
+          const project = yield* Braintrust.Project("Project", {});
+          yield* Braintrust.Dataset("Dataset", { projectId: project.projectId });
+          return yield* Braintrust.Experiment("Pinned", {
+            projectId: project.projectId,
+            datasetId: dataset.datasetId,
+            ...props,
+          });
+        });
+
+      const pinned = program({
+        datasetVersion: "1000000000000000001",
+        parametersId: first.id,
+        parametersVersion: first._xact_id,
+        repoInfo: { commit: "abc", branch: "main", dirty: false },
+      });
+      const experiment = yield* stack.deploy(pinned);
+      expect(experiment.repoInfo).toEqual({ commit: "abc", branch: "main", dirty: false });
+      yield* eventually(getExperiment(experiment.experimentId), (created) => {
+        expect(created.dataset_version).toBe("1000000000000000001");
+        expect(created.parameters_id).toBe(first.id);
+        expect(created.parameters_version).toBe(first._xact_id);
+        expect(created.repo_info).toEqual({ commit: "abc", branch: "main", dirty: false });
+      });
+      const plan = yield* stack.plan(pinned);
+      expect(plan.resources.Pinned.action).toBe("noop");
+
+      const changed = yield* stack.deploy(
+        program({
+          datasetVersion: "1000000000000000002",
+          parametersId: second.id,
+          parametersVersion: second._xact_id,
+          repoInfo: { commit: "def", tag: "v1" },
+        }),
+      );
+      expect(changed.experimentId).toBe(experiment.experimentId);
+      expect(changed.repoInfo).toEqual({ commit: "def", tag: "v1" });
+      yield* eventually(getExperiment(experiment.experimentId), (observed) => {
+        expect(observed.dataset_version).toBe("1000000000000000002");
+        expect(observed.parameters_id).toBe(second.id);
+        expect(observed.parameters_version).toBe(second._xact_id);
+        // Repo info merges like metadata: removed keys stay as null.
+        expect(observed.repo_info).toEqual({ commit: "def", branch: null, tag: "v1", dirty: null });
+      });
+
+      const cleared = yield* stack.deploy(program({ parametersId: second.id }));
+      expect(cleared.experimentId).toBe(experiment.experimentId);
+      expect(cleared.datasetVersion).toBeUndefined();
+      expect(cleared.parametersVersion).toBeUndefined();
+      expect(cleared.repoInfo).toBeUndefined();
+      yield* eventually(getExperiment(experiment.experimentId), (after) => {
+        expect(after.dataset_version || undefined).toBeUndefined();
+        expect(after.parameters_version || undefined).toBeUndefined();
+        expect(after.parameters_id).toBe(second.id);
+      });
+
+      // Braintrust can't unlink parameters, so removing them replaces.
+      const unlinked = yield* stack.deploy(program({}));
+      expect(unlinked.experimentId).not.toBe(experiment.experimentId);
+      expect(unlinked.parametersId).toBeUndefined();
+      yield* expectExperimentGone(experiment.experimentId);
+
+      yield* stack.destroy();
+      yield* expectExperimentGone(unlinked.experimentId);
+    }),
+  { tags, timeout: 180_000 },
+);
+
 test.provider(
   "unlinking the dataset or moving to another project replaces the experiment",
   (stack) =>

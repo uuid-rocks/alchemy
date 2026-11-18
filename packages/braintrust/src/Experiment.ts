@@ -45,6 +45,31 @@ export interface ExperimentProps {
    * removing it replaces the experiment.
    */
   datasetId?: string;
+  /**
+   * Version of the linked dataset the experiment ran against (the
+   * dataset's `_xact_id` at the time), so the run can be reproduced after
+   * the dataset changes. Removing it clears it.
+   */
+  datasetVersion?: string;
+  /**
+   * Id of the saved parameters the experiment ran with, e.g.
+   * `Braintrust.Function.lookup(...).functionId` for parameters pushed with
+   * `braintrust push`. It can be changed in place, but Braintrust
+   * can't unlink parameters, so removing it replaces the experiment.
+   */
+  parametersId?: string;
+  /**
+   * Version of the saved parameters the experiment ran with, e.g.
+   * `parameters.version`. Removing it clears it.
+   */
+  parametersVersion?: string;
+  /**
+   * The state of the repository the experiment ran from: `commit`,
+   * `branch`, `tag`, `dirty`, author, commit message and time, and
+   * `git_diff`. Braintrust merges it key by key, so a key removed here is
+   * kept on the experiment with a `null` value.
+   */
+  repoInfo?: braintrust.CreateEvalRequestRepoInfo;
 }
 
 export interface ExperimentAttributes {
@@ -66,6 +91,14 @@ export interface ExperimentAttributes {
   baseExperimentId: string | undefined;
   /** Id of the linked dataset. */
   datasetId: string | undefined;
+  /** Version of the linked dataset the experiment ran against. */
+  datasetVersion: string | undefined;
+  /** Id of the linked saved parameters. */
+  parametersId: string | undefined;
+  /** Version of the linked saved parameters. */
+  parametersVersion: string | undefined;
+  /** The state of the repository the experiment ran from, without keys whose value is `null`. */
+  repoInfo: braintrust.CreateEvalRequestRepoInfo | undefined;
   /** When the experiment was created (ISO 8601). */
   created: string | undefined;
 }
@@ -100,7 +133,8 @@ export interface ExperimentLookup {
  * as a pinned baseline other experiments compare against.
  *
  * :::caution
- * Changing `projectId`, or removing `datasetId`, replaces the experiment.
+ * Changing `projectId`, or removing `datasetId` or `parametersId`, replaces
+ * the experiment.
  * Its logged results are deleted with the old one.
  * :::
  *
@@ -125,6 +159,28 @@ export interface ExperimentLookup {
  *   datasetId: dataset.datasetId,
  *   tags: ["baseline"],
  *   metadata: { model: "gpt-4o-mini" },
+ * });
+ * ```
+ *
+ * ### Pinning what the experiment ran against
+ * **Example:** Record the dataset version, saved parameters and commit
+ * ```typescript
+ * const project = yield* Braintrust.Project("Support", {});
+ * const dataset = yield* Braintrust.Dataset("Tickets", {
+ *   projectId: project.projectId,
+ * });
+ * // Saved parameters are pushed with `braintrust push` or made in the UI.
+ * const parameters = Braintrust.Function.lookup({
+ *   projectId: project.projectId,
+ *   slug: "support-parameters",
+ * });
+ * const baseline = yield* Braintrust.Experiment("Baseline", {
+ *   projectId: project.projectId,
+ *   datasetId: dataset.datasetId,
+ *   datasetVersion: "1000198228304465130",
+ *   parametersId: parameters.functionId,
+ *   parametersVersion: parameters.version,
+ *   repoInfo: { commit: "4f2a9c1", branch: "main", dirty: false },
  * });
  * ```
  *
@@ -169,7 +225,7 @@ export const Experiment = Resource<Experiment>("Braintrust.Experiment");
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Metadata without the keys a merge patch has nulled. */
+/** Metadata or repo info without the keys a merge patch has nulled. */
 const withoutNulls = (metadata: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(
     Object.entries(metadata)
@@ -178,8 +234,8 @@ const withoutNulls = (metadata: Record<string, unknown>): Record<string, unknown
   );
 
 /**
- * The PATCH body that turns observed metadata into desired. Braintrust
- * deep-merges experiment metadata and stores a key sent as `null`, so
+ * The PATCH body that turns observed metadata or repo info into desired.
+ * Braintrust deep-merges both and stores a key sent as `null`, so
  * unchanged keys are left out and removed keys are nulled.
  */
 const metadataPatch = (
@@ -204,6 +260,7 @@ const metadataPatch = (
 
 const toAttributes = (experiment: braintrust.Experiment): ExperimentAttributes => {
   const metadata = withoutNulls(experiment.metadata ?? {});
+  const repoInfo = withoutNulls({ ...experiment.repo_info });
   return {
     experimentId: experiment.id,
     projectId: experiment.project_id,
@@ -214,6 +271,13 @@ const toAttributes = (experiment: braintrust.Experiment): ExperimentAttributes =
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
     baseExperimentId: experiment.base_exp_id ?? undefined,
     datasetId: experiment.dataset_id ?? undefined,
+    datasetVersion: experiment.dataset_version || undefined,
+    parametersId: experiment.parameters_id ?? undefined,
+    parametersVersion: experiment.parameters_version || undefined,
+    repoInfo:
+      Object.keys(repoInfo).length > 0
+        ? (repoInfo as braintrust.CreateEvalRequestRepoInfo)
+        : undefined,
     created: experiment.created ?? undefined,
   };
 };
@@ -244,7 +308,9 @@ export const ExperimentProvider = () =>
           if (!isResolved(news)) return undefined;
           if (news.projectId !== olds.projectId) return { action: "replace" } as const;
           // An adoption's `olds` are the new props; `output` is what it found.
-          if ((output?.datasetId ?? olds.datasetId) !== undefined && news.datasetId === undefined) {
+          const unlinked = (key: "datasetId" | "parametersId") =>
+            (output?.[key] ?? olds[key]) !== undefined && news[key] === undefined;
+          if (unlinked("datasetId") || unlinked("parametersId")) {
             // A replacement under the same name would find the old
             // experiment again, so it goes first.
             return {
@@ -294,12 +360,16 @@ export const ExperimentProvider = () =>
               metadata: news.metadata,
               base_exp_id: news.baseExperimentId,
               dataset_id: news.datasetId,
+              dataset_version: news.datasetVersion,
+              parameters_id: news.parametersId,
+              parameters_version: news.parametersVersion,
+              repo_info: news.repoInfo,
             });
           }
 
           // Sync — PATCH only the fields that differ from what is deployed.
           // Experiments ignore `null` for most fields: an empty string
-          // clears the description and `[]` the tags.
+          // clears the description and versions, and `[]` the tags.
           const update: Omit<braintrust.UpdateExperimentRequest, "experiment_id"> = {};
           if (experiment.name !== name) update.name = name;
           if ((experiment.description || undefined) !== (news.description || undefined)) {
@@ -315,6 +385,20 @@ export const ExperimentProvider = () =>
           if (news.datasetId !== undefined && experiment.dataset_id !== news.datasetId) {
             update.dataset_id = news.datasetId;
           }
+          if ((experiment.dataset_version || undefined) !== (news.datasetVersion || undefined)) {
+            update.dataset_version = news.datasetVersion ?? "";
+          }
+          if (news.parametersId !== undefined && experiment.parameters_id !== news.parametersId) {
+            update.parameters_id = news.parametersId;
+          }
+          if (
+            (experiment.parameters_version || undefined) !== (news.parametersVersion || undefined)
+          ) {
+            update.parameters_version = news.parametersVersion ?? "";
+          }
+          // Repo info merges like metadata.
+          const repoInfo = metadataPatch({ ...experiment.repo_info }, { ...news.repoInfo });
+          if (repoInfo) update.repo_info = repoInfo as braintrust.CreateEvalRequestRepoInfo;
           if (Object.keys(update).length > 0) {
             yield* session.note(`Updating experiment ${name}...`);
             experiment = yield* braintrust.updateExperiment({

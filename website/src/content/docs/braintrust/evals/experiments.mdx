@@ -38,7 +38,28 @@ const baseline = yield* Braintrust.Experiment("Baseline", {
 });
 ```
 
-Moving an experiment to another project, or removing its `datasetId`, replaces it, and the results logged to the old one are deleted with it. Braintrust merges `metadata` key by key, so a key you remove stays on the experiment with a `null` value.
+Moving an experiment to another project, or removing its `datasetId` or `parametersId`, replaces it, and the results logged to the old one are deleted with it. Braintrust merges `metadata` key by key, so a key you remove stays on the experiment with a `null` value.
+
+## Record what the baseline ran against
+
+To reproduce a run after the dataset or the code changes, pin the dataset version, the saved parameters and the commit:
+
+```typescript title="alchemy.run.ts"
+const parameters = Braintrust.Function.lookup({
+  projectId: project.projectId,
+  slug: "support-parameters",
+});
+const pinned = yield* Braintrust.Experiment("Pinned", {
+  projectId: project.projectId,
+  datasetId: tickets.datasetId,
+  datasetVersion: "1000198228304465130",
+  parametersId: parameters.functionId,
+  parametersVersion: parameters.version,
+  repoInfo: { commit: "4f2a9c1", branch: "main", dirty: false },
+});
+```
+
+`datasetVersion` is the dataset's `_xact_id` when the run read it. Saved parameters are pushed with `braintrust push` or made in the UI, so look them up. Every one of these updates in place, except that removing `parametersId` replaces the experiment. `repoInfo` merges key by key, like `metadata`.
 
 ## Compare against the baseline
 
