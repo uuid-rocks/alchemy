@@ -206,7 +206,7 @@ export const ProjectAutomationProvider = () =>
           const update: Omit<braintrust.UpdateProjectAutomationRequest, "project_automation_id"> =
             {};
           if (automation.name !== name) update.name = name;
-          if ((automation.description || undefined) !== news.description) {
+          if ((automation.description || undefined) !== (news.description || undefined)) {
             update.description = news.description ?? "";
           }
           if (!deepEqual(automation.config, news.config)) update.config = news.config;

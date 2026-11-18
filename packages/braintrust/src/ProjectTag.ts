@@ -179,7 +179,7 @@ export const ProjectTagProvider = () =>
           // The API ignores `null`; an empty string clears a field.
           const update: Omit<braintrust.UpdateProjectTagRequest, "project_tag_id"> = {};
           if (tag.name !== name) update.name = name;
-          if ((tag.description || undefined) !== news.description) {
+          if ((tag.description || undefined) !== (news.description || undefined)) {
             update.description = news.description ?? "";
           }
           if ((tag.color || undefined) !== news.color) update.color = news.color ?? "";

@@ -302,7 +302,7 @@ export const ExperimentProvider = () =>
           // clears the description and `[]` the tags.
           const update: Omit<braintrust.UpdateExperimentRequest, "experiment_id"> = {};
           if (experiment.name !== name) update.name = name;
-          if ((experiment.description || undefined) !== news.description) {
+          if ((experiment.description || undefined) !== (news.description || undefined)) {
             update.description = news.description ?? "";
           }
           if (experiment.public !== (news.public ?? false)) update.public = news.public ?? false;

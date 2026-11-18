@@ -105,6 +105,23 @@ test.provider(
 );
 
 test.provider(
+  "an empty description writes no new version",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const props = { promptData: chat("empty"), description: "" };
+      const prompt = yield* stack.deploy(inProject(props));
+      const forced = yield* stack.deploy(inProject(props), { force: true });
+      expect(forced.version).toBe(prompt.version);
+
+      yield* stack.destroy();
+      yield* expectPromptGone(prompt.promptId);
+    }),
+  { tags, timeout: 120_000 },
+);
+
+test.provider(
   "a prompt with a function type serves as a scorer",
   (stack) =>
     Effect.gen(function* () {

@@ -224,7 +224,7 @@ export const ProjectScoreProvider = () =>
           const update: Omit<braintrust.UpdateProjectScoreRequest, "project_score_id"> = {};
           if (observed.name !== name) update.name = name;
           if (observed.scoreType !== news.scoreType) update.score_type = news.scoreType;
-          if (observed.description !== news.description) {
+          if (observed.description !== (news.description || undefined)) {
             update.description = news.description ?? "";
           }
           if (

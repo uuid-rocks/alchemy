@@ -326,7 +326,7 @@ export const PromptProvider = () =>
           const observed = toAttributes(prompt);
           const unchanged =
             observed.name === body.name &&
-            observed.description === news.description &&
+            observed.description === (news.description || undefined) &&
             deepEqual(observed.tags, body.tags) &&
             deepEqual(observed.promptData, news.promptData, { stripNullish: true }) &&
             observed.functionType === news.functionType;

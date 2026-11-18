@@ -243,7 +243,7 @@ export const ViewProvider = () =>
           const update: Omit<braintrust.UpdateViewRequest, "view_id" | keyof typeof scope> = {};
           if (observed.name !== name) update.name = name;
           if (observed.viewType !== news.viewType) update.view_type = news.viewType;
-          if (observed.description !== news.description) {
+          if (observed.description !== (news.description || undefined)) {
             update.description = news.description ?? "";
           }
           if (!deepEqual(observed.viewData, isEmpty(news.viewData) ? undefined : news.viewData)) {

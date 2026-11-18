@@ -224,7 +224,7 @@ export const McpServerProvider = () =>
           const update: Omit<braintrust.UpdateMcpServerRequest, "mcp_server_id"> = {};
           if (server.name !== name) update.name = name;
           if (server.url !== url) update.url = url;
-          if ((server.description || undefined) !== news.description) {
+          if ((server.description || undefined) !== (news.description || undefined)) {
             update.description = news.description ?? "";
           }
           if (Object.keys(update).length > 0) {

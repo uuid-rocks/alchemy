@@ -191,7 +191,7 @@ export const SpanIframeProvider = () =>
           const update: Omit<braintrust.UpdateSpanIframeRequest, "span_iframe_id"> = {};
           if (iframe.name !== name) update.name = name;
           if (iframe.url !== news.url) update.url = news.url;
-          if ((iframe.description || undefined) !== news.description) {
+          if ((iframe.description || undefined) !== (news.description || undefined)) {
             update.description = news.description ?? "";
           }
           if ((iframe.post_message ?? false) !== (news.postMessage ?? false)) {

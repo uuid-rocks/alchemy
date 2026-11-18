@@ -351,7 +351,7 @@ export const FunctionProvider = () =>
           const observed = toAttributes(fn);
           const unchanged =
             observed.name === body.name &&
-            observed.description === news.description &&
+            observed.description === (news.description || undefined) &&
             deepEqual(observed.tags, body.tags) &&
             deepEqual(withoutCodeHash(observed.functionData), news.functionData, {
               stripNullish: true,
