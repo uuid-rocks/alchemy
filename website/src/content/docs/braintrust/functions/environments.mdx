@@ -32,11 +32,27 @@ const production = yield* Braintrust.Environment("Production", {
 
 Without a `slug`, Alchemy generates one from the Stack, the stage and the logical ID. Slugs are unique across the organization, so a fixed one like `production` belongs in exactly one Stack. Every prop updates in place.
 
-## Point an environment at a version
+## Serve a prompt from an environment
 
-Assign a version to an environment in the Braintrust UI. Braintrust's API description doesn't include assigning versions, so Alchemy can't declare it yet.
+List the environments on the prompt. Every version Alchemy writes is assigned to them, so they follow each change:
+
+```typescript title="alchemy.run.ts"
+const summarize = yield* Braintrust.Prompt("Summarize", {
+  projectId: project.projectId,
+  slug: "summarize-ticket",
+  environments: [staging.slug, production.slug],
+  promptData: {
+    prompt: { type: "completion", content: "Summarize: {{input}}" },
+    options: { model: "gpt-4o-mini" },
+  },
+});
+```
 
 Your code then loads the prompt by environment, with the Braintrust SDK's `loadPrompt`, and gets whichever version the label points at.
+
+Braintrust's API can't unassign a prompt. Removing an environment from the list writes a new version without it, so that environment stays on the previous version and gets no newer ones. To take the prompt out of it entirely, run `bt prompts unassign` or use the Braintrust UI. Without `environments`, Alchemy leaves the assignments made in the UI alone.
+
+Two things stay in the UI or the `bt` CLI, because Braintrust's API description doesn't cover them: keeping an environment on an older version, and assigning functions.
 
 ## Use an environment you didn't create
 

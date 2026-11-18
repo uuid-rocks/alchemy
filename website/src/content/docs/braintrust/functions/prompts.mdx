@@ -61,6 +61,8 @@ Alchemy writes a new version only when the prompt you declare differs from the o
 
 Changing the slug keeps the prompt and adds a version. Moving it to another project replaces it, and every version of the old one is deleted.
 
+To have `staging` or `production` serve each new version, list them in `environments`. See [Environments](/braintrust/functions/environments#serve-a-prompt-from-an-environment).
+
 ## Judge answers with an LLM
 
 A prompt with `functionType: "scorer"` is an **LLM-as-a-judge** scorer. Its `parser` turns the model's answer into a score:

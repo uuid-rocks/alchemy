@@ -4,6 +4,7 @@ import * as Test from "@alchemy.run/test/Alchemy";
 import * as Core from "@alchemy.run/test/Core";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import { adopt, OwnedBySomeoneElse } from "alchemy/AdoptPolicy";
+import type { Input } from "alchemy/Input";
 import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import * as Result from "effect/Result";
@@ -145,6 +146,137 @@ test.provider(
       yield* expectPromptGone(scorer.promptId);
     }),
   { tags, timeout: 120_000 },
+);
+
+/** The version of the prompt an environment serves, if any. */
+const servedVersion = (projectId: string, promptId: string, environment: string) =>
+  Stream.runCollect(braintrust.listPrompts.items({ project_id: projectId, environment })).pipe(
+    Effect.map((prompts) => prompts.find((prompt) => prompt.id === promptId)?._xact_id),
+  );
+
+/** Two environments, a project, and a prompt assigned to some of them. */
+const withEnvironments = (
+  pick: ((envs: { a: Input<string>; b: Input<string> }) => Input<string>[]) | undefined,
+  content = "environments",
+) =>
+  Effect.gen(function* () {
+    const a = yield* Braintrust.Environment("EnvA", {});
+    const b = yield* Braintrust.Environment("EnvB", {});
+    const project = yield* Braintrust.Project("Project", {});
+    const prompt = yield* Braintrust.Prompt("Prompt", {
+      projectId: project.projectId,
+      promptData: chat(content),
+      environments: pick?.({ a: a.slug, b: b.slug }),
+    });
+    return { prompt, a: a.slug, b: b.slug };
+  });
+
+test.provider(
+  "assign a prompt to environments, narrow and remove them, and leave them alone unset",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const both = withEnvironments(({ a, b }) => [b, a]);
+      const { prompt, a, b } = yield* stack.deploy(both);
+      expect(prompt.environments).toEqual([a, b].sort());
+      expect(yield* servedVersion(prompt.projectId, prompt.promptId, a)).toBe(prompt.version);
+      expect(yield* servedVersion(prompt.projectId, prompt.promptId, b)).toBe(prompt.version);
+
+      const plan = yield* stack.plan(both);
+      expect(plan.resources.Prompt.action).toBe("noop");
+      const forced = yield* stack.deploy(both, { force: true });
+      expect(forced.prompt.version).toBe(prompt.version);
+
+      // A content change moves every listed environment to the new version.
+      const { prompt: reworded } = yield* stack.deploy(
+        withEnvironments(({ a, b }) => [a, b], "reworded"),
+      );
+      expect(reworded.version).not.toBe(prompt.version);
+      expect(yield* servedVersion(prompt.projectId, prompt.promptId, a)).toBe(reworded.version);
+      expect(yield* servedVersion(prompt.projectId, prompt.promptId, b)).toBe(reworded.version);
+
+      // Narrowing to one writes a version only that one follows; the API
+      // can't unassign, so the other stays on the previous version.
+      const { prompt: narrowed } = yield* stack.deploy(
+        withEnvironments(({ a }) => [a], "reworded"),
+      );
+      expect(narrowed.promptId).toBe(prompt.promptId);
+      expect(narrowed.environments).toEqual([a]);
+      expect(narrowed.version).not.toBe(reworded.version);
+      expect(yield* servedVersion(prompt.projectId, prompt.promptId, a)).toBe(narrowed.version);
+      expect(yield* servedVersion(prompt.projectId, prompt.promptId, b)).toBe(reworded.version);
+
+      // Removing `environments` leaves every environment behind.
+      const { prompt: removed } = yield* stack.deploy(withEnvironments(undefined, "reworded"));
+      expect(removed.environments).toBeUndefined();
+      expect(removed.version).not.toBe(narrowed.version);
+      expect(yield* servedVersion(prompt.projectId, prompt.promptId, a)).toBe(narrowed.version);
+
+      // Unset, an assignment made elsewhere is left as it is.
+      const assigned = yield* braintrust.replacePrompt({
+        project_id: prompt.projectId,
+        slug: prompt.slug,
+        name: prompt.slug,
+        prompt_data: chat("reworded"),
+        environment_slugs: [b],
+      });
+      yield* stack.deploy(withEnvironments(undefined, "reworded"));
+      // No newer version was written, so `b` still serves the current one.
+      yield* eventually(getPrompt(prompt.promptId), (current) => {
+        expect(current._xact_id).toBe(assigned._xact_id);
+      });
+      expect(yield* servedVersion(prompt.projectId, prompt.promptId, b)).toBe(assigned._xact_id);
+
+      yield* stack.destroy();
+      yield* expectPromptGone(prompt.promptId);
+    }),
+  { tags, timeout: 180_000 },
+);
+
+test.provider(
+  "adopting a prompt assigned elsewhere moves only the declared environments",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+      const slug = testName("alchemy-test-bt-env-prompt");
+
+      const program = (environments: boolean) =>
+        Effect.gen(function* () {
+          const a = yield* Braintrust.Environment("EnvA", {});
+          const b = yield* Braintrust.Environment("EnvB", {});
+          const project = yield* Braintrust.Project("Project", {});
+          const prompt = environments
+            ? yield* Braintrust.Prompt("Prompt", {
+                projectId: project.projectId,
+                slug,
+                promptData: chat("adopted"),
+                environments: [b.slug],
+              })
+            : undefined;
+          return { prompt, projectId: project.projectId, a: a.slug, b: b.slug };
+        });
+
+      const { projectId, a, b } = yield* stack.deploy(program(false));
+      const foreign = yield* braintrust.createPrompt({
+        project_id: projectId,
+        name: slug,
+        slug,
+        prompt_data: chat("foreign"),
+        environment_slugs: [a],
+      });
+      expect(yield* servedVersion(projectId, foreign.id, a)).toBe(foreign._xact_id);
+
+      const { prompt } = yield* stack.deploy(program(true).pipe(adopt(true)));
+      expect(prompt?.promptId).toBe(foreign.id);
+      expect(prompt?.environments).toEqual([b]);
+      expect(yield* servedVersion(projectId, foreign.id, b)).toBe(prompt?.version);
+      expect(yield* servedVersion(projectId, foreign.id, a)).toBe(foreign._xact_id);
+
+      yield* stack.destroy();
+      yield* expectPromptGone(foreign.id);
+    }),
+  { tags, timeout: 180_000 },
 );
 
 test.provider(
