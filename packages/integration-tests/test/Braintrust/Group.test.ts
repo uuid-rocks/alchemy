@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
-import { eventually, expectFound } from "./lookup.ts";
+import { eventually, expectFound, permissionWritesTimeout } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -93,7 +93,7 @@ test.provider(
       yield* expectGroupGone(group.groupId);
       yield* expectGroupGone(innerId);
     }),
-  { tags, timeout: 120_000 },
+  { tags, timeout: permissionWritesTimeout },
 );
 
 test.provider(

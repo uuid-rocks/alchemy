@@ -62,3 +62,12 @@ const passes = <A>(check: (value: A) => void, value: A) => {
     return false;
   }
 };
+
+/**
+ * Budget for a test that makes several group, role, ACL or member writes.
+ * Braintrust holds every such write while it creates a service token, about
+ * 10 s each (measured 2026-11-18: a group PATCH sent during a token create
+ * took 9.7 s and returned with it). The suite creates a dozen tokens at once
+ * (`Bindings.test.ts`, `ServiceToken.test.ts`), so one write can wait a minute.
+ */
+export const permissionWritesTimeout = 300_000;

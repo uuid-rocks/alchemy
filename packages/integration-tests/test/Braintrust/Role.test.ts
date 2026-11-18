@@ -9,7 +9,7 @@ import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { testName } from "../names.ts";
-import { eventually, expectFound } from "./lookup.ts";
+import { eventually, expectFound, permissionWritesTimeout } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -115,7 +115,7 @@ test.provider(
       yield* stack.destroy();
       yield* expectRoleGone(role.roleId);
     }),
-  { tags, timeout: 120_000 },
+  { tags, timeout: permissionWritesTimeout },
 );
 
 test.provider(

@@ -6,7 +6,7 @@ import { adopt, OwnedBySomeoneElse } from "alchemy/AdoptPolicy";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
-import { expectFound } from "./lookup.ts";
+import { expectFound, permissionWritesTimeout } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -104,7 +104,7 @@ test.provider(
       yield* stack.destroy();
       yield* expectAclGone(viewer.aclId);
     }),
-  { tags, timeout: 180_000 },
+  { tags, timeout: permissionWritesTimeout },
 );
 
 test.provider(

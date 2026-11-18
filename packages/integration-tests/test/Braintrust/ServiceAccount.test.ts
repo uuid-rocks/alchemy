@@ -5,6 +5,7 @@ import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import { testName } from "../names.ts";
+import { permissionWritesTimeout } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -59,7 +60,7 @@ test.provider(
         yield* expectRemoved(probe, account.serviceAccountId);
       }),
     ),
-  { tags, timeout: 120_000 },
+  { tags, timeout: permissionWritesTimeout },
 );
 
 test.provider(
@@ -87,5 +88,5 @@ test.provider(
         yield* expectRemoved(probe, renamed.serviceAccountId);
       }),
     ),
-  { tags, timeout: 120_000 },
+  { tags, timeout: permissionWritesTimeout },
 );
