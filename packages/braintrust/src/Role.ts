@@ -164,9 +164,15 @@ const getById = (roleId: string) =>
     Effect.catchTag("NotFoundOrForbidden", () => Effect.undefined),
   );
 
-const findByName = (name: string) =>
+// System roles have no org and are shared by every organization. An org
+// role may carry a system role's name, so `system` picks which one to find:
+// only `lookup` may return a system role, never read or reconcile, which
+// would edit or delete it.
+const findByName = (name: string, system = false) =>
   braintrust.listRoles.items({ role_name: name }).pipe(
-    Stream.filter((role) => role.name === name && !role.deleted_at),
+    Stream.filter(
+      (role) => role.name === name && !role.deleted_at && (role.org_id == null) === system,
+    ),
     Stream.runHead,
     Effect.map(Option.getOrUndefined),
   );
@@ -183,7 +189,7 @@ export const RoleProvider = () =>
       return {
         stables: ["roleId", "orgId"],
         lookup: Effect.fn(function* ({ name }) {
-          const role = yield* findByName(name);
+          const role = (yield* findByName(name)) ?? (yield* findByName(name, true));
           return role ? toAttributes(role) : undefined;
         }),
         read: Effect.fn(function* ({ id, olds, output, previous }) {
