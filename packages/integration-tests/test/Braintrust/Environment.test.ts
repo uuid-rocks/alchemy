@@ -20,7 +20,7 @@ const getEnvironment = (environmentId: string) =>
 const expectEnvironmentGone = (environmentId: string) =>
   Effect.gen(function* () {
     const exists = yield* getEnvironment(environmentId).pipe(
-      Effect.map(() => true),
+      Effect.map((environment) => !environment.deleted_at),
       Effect.catchTag("NotFoundOrForbidden", () => Effect.succeed(false)),
       Effect.repeat({ schedule: Schedule.spaced("1 second"), until: (found) => !found, times: 10 }),
     );
