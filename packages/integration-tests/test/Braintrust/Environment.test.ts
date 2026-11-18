@@ -3,6 +3,7 @@ import { expect } from "@alchemy.run/test";
 import * as Test from "@alchemy.run/test/Alchemy";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import { adopt, OwnedBySomeoneElse } from "alchemy/AdoptPolicy";
+import { base32 } from "alchemy/Util";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
@@ -99,7 +100,11 @@ test.provider(
   (stack) =>
     Effect.gen(function* () {
       yield* stack.destroy();
-      const slug = testName("alchemy-test-bt-foreign-env");
+      // A taken slug fails the create, so a fixed one left by a crashed run
+      // would block every later run. A fresh generated-shape suffix lets
+      // `pnpm nuke` find such a leftover.
+      const suffix = base32(crypto.getRandomValues(new Uint8Array(10)));
+      const slug = `alchemy-test-bt-foreign-env-${suffix}`;
 
       const foreign = yield* braintrust.createEnvironment({ name: "Foreign", slug });
 
