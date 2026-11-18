@@ -110,6 +110,6 @@ See [Logs and ingest keys](/braintrust/observability/logs).
 
 ## How @alchemy.run/braintrust models these concepts
 
-Your key picks the organization, and `Braintrust.providers()` deploys into it. Projects, datasets, experiments, prompts, functions, roles, groups, ACLs, AI secrets, scores, views and automations are resources in your Stack, next to the app that uses them. What your app does with them while it runs, like logging traces, invoking a function or running an eval, are bindings: each one gives its host a service token that can only reach the object it binds.
+Your key picks the organization, and `Braintrust.providers()` deploys into it. Projects, datasets, experiments, prompts, functions, roles, groups, ACLs, AI secrets, scores, views and automations are resources in your Stack, next to the app that uses them. What your app does with them while it runs, like logging traces, invoking a function or running an eval, are bindings: each host gets its own service token, granted only what its bindings need on the objects they bind.
 
 Next, connect your organization in [Setup](/braintrust/setup).

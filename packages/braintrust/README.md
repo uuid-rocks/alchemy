@@ -69,7 +69,7 @@ Every resource except `ServiceAccount` and `ServiceToken` also has `lookup`, to 
 
 ## Bindings
 
-Bindings give a Worker, Function or other host a typed client for one Braintrust object, with its own service account and token that can reach only that object:
+Bindings give a Worker, Function or other host a typed client for one Braintrust object. Each host gets its own service account and token, granted only what its bindings need on the objects they bind:
 
 - Project logs: `InsertProjectLogs`, `FetchProjectLogs`, `ProjectLogFeedback`, and `ReadProjectLogs`, `WriteProjectLogs`, `ReadWriteProjectLogs`
 - Experiments: `InsertExperimentEvents`, `FetchExperimentEvents`, `ExperimentFeedback`, `SummarizeExperiment`, and `ReadExperiment`, `WriteExperiment`, `ReadWriteExperiment`
