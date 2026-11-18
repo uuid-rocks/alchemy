@@ -167,6 +167,39 @@ test.provider(
 );
 
 test.provider(
+  "unlinking the dataset of an explicitly named experiment replaces it under the same name",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+      const name = testName("alchemy-test-bt-unlinked-experiment");
+
+      const program = (linked: boolean) =>
+        Effect.gen(function* () {
+          const project = yield* Braintrust.Project("Project", {});
+          const dataset = yield* Braintrust.Dataset("Dataset", { projectId: project.projectId });
+          return yield* Braintrust.Experiment("Experiment", {
+            projectId: project.projectId,
+            name,
+            datasetId: linked ? dataset.datasetId : undefined,
+          });
+        });
+
+      const linked = yield* stack.deploy(program(true));
+      const unlinked = yield* stack.deploy(program(false));
+      expect(unlinked.experimentId).not.toBe(linked.experimentId);
+      yield* expectExperimentGone(linked.experimentId);
+      yield* eventually(getExperiment(unlinked.experimentId), (observed) => {
+        expect(observed.name).toBe(name);
+        expect(observed.dataset_id ?? undefined).toBeUndefined();
+      });
+
+      yield* stack.destroy();
+      yield* expectExperimentGone(unlinked.experimentId);
+    }),
+  { tags, timeout: 120_000 },
+);
+
+test.provider(
   "an experiment with an explicit name created elsewhere is refused unless adopted",
   (stack) =>
     Effect.gen(function* () {

@@ -244,7 +244,12 @@ export const ExperimentProvider = () =>
           if (!isResolved(news)) return undefined;
           if (news.projectId !== olds.projectId) return { action: "replace" } as const;
           if (olds.datasetId !== undefined && news.datasetId === undefined) {
-            return { action: "replace" } as const;
+            // A replacement under the same name would find the old
+            // experiment again, so it goes first.
+            return {
+              action: "replace",
+              deleteFirst: news.name !== undefined && news.name === olds.name,
+            } as const;
           }
         }),
         lookup: Effect.fn(function* ({ projectId, name }) {
