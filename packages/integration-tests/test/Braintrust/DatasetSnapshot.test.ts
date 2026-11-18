@@ -197,3 +197,36 @@ test.provider(
     }),
   { tags, timeout: 120_000 },
 );
+
+test.provider(
+  "adopting a snapshot of another version replaces it under the same name",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+      const name = testName("alchemy-test-bt-foreign-snapshot-pin");
+
+      const dataset = yield* stack.deploy(
+        Effect.gen(function* () {
+          const project = yield* Braintrust.Project("Project", {});
+          return yield* Braintrust.Dataset("Dataset", { projectId: project.projectId });
+        }),
+      );
+      const foreign = yield* braintrust.createDatasetSnapshot({
+        dataset_id: dataset.datasetId,
+        name,
+        xact_id: V1,
+      });
+
+      const adopted = yield* stack.deploy(inDataset({ name, xactId: V2 }).pipe(adopt(true)));
+      expect(adopted.datasetSnapshotId).not.toBe(foreign.id);
+      yield* expectSnapshotGone(foreign.id);
+      yield* eventually(getSnapshot(adopted.datasetSnapshotId), (observed) => {
+        expect(observed.name).toBe(name);
+        expect(observed.xact_id).toBe(V2);
+      });
+
+      yield* stack.destroy();
+      yield* expectSnapshotGone(adopted.datasetSnapshotId);
+    }),
+  { tags, timeout: 120_000 },
+);

@@ -165,10 +165,11 @@ export const McpServerProvider = () =>
     Effect.gen(function* () {
       return {
         stables: ["mcpServerId", "projectId"],
-        diff: Effect.fn(function* ({ news, olds }) {
+        diff: Effect.fn(function* ({ news, olds, output }) {
           if (!isResolved(news)) return undefined;
           if (news.projectId !== olds.projectId) return { action: "replace" } as const;
-          if (originOf(plain(news.url)) !== originOf(plain(olds.url))) {
+          // An adoption's `olds` are the new props; `output` is what it found.
+          if (originOf(plain(news.url)) !== originOf(plain(output?.url ?? olds.url))) {
             // A replacement under the same name would find the old server
             // again and PATCH its origin, so it goes first.
             return {

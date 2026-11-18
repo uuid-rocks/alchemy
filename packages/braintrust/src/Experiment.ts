@@ -240,10 +240,11 @@ export const ExperimentProvider = () =>
     Effect.gen(function* () {
       return {
         stables: ["experimentId", "projectId"],
-        diff: Effect.fn(function* ({ news, olds }) {
+        diff: Effect.fn(function* ({ news, olds, output }) {
           if (!isResolved(news)) return undefined;
           if (news.projectId !== olds.projectId) return { action: "replace" } as const;
-          if (olds.datasetId !== undefined && news.datasetId === undefined) {
+          // An adoption's `olds` are the new props; `output` is what it found.
+          if ((output?.datasetId ?? olds.datasetId) !== undefined && news.datasetId === undefined) {
             // A replacement under the same name would find the old
             // experiment again, so it goes first.
             return {

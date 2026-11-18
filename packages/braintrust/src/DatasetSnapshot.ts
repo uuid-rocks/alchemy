@@ -143,12 +143,13 @@ export const DatasetSnapshotProvider = () =>
     Effect.gen(function* () {
       return {
         stables: ["datasetSnapshotId", "datasetId", "xactId"],
-        diff: Effect.fn(function* ({ news, olds }) {
+        diff: Effect.fn(function* ({ news, olds, output }) {
           if (!isResolved(news)) return undefined;
           if (news.datasetId !== olds.datasetId) return { action: "replace" } as const;
           // Creating first would collide on the name in the same dataset:
           // Braintrust renames the new snapshot, and renaming it back fails.
-          if (news.xactId !== olds.xactId) {
+          // An adoption's `olds` are the new props; `output` is what it found.
+          if (news.xactId !== (output?.xactId ?? olds.xactId)) {
             return { action: "replace", deleteFirst: true } as const;
           }
         }),
