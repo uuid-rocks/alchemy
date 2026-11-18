@@ -4,10 +4,12 @@
  * Braintrust signs no workload identity (no OIDC tokens, no federation), so
  * each host gets its own: a `Braintrust.ServiceAccount` and a
  * `Braintrust.ServiceToken` for it, created at deploy in the host's
- * namespace, and one `Braintrust.Acl` per permission a binding needs, on the
- * object it binds. Every binding on a host shares the account and token;
- * the grants add up. Destroying the host revokes the token and removes the
- * account and its grants. The deployer's credentials never reach a host.
+ * namespace. Each binding adds the permissions it needs, on the object it
+ * binds, to the account's bindings; the account reconciles them as one set,
+ * one ACL per distinct grant, when the bound objects' ids are known. Every
+ * binding on a host shares the account and token. Destroying the host
+ * revokes the token and removes the account and its grants. The deployer's
+ * credentials never reach a host.
  *
  * The token is bound into the host as `BRAINTRUST_API_KEY`, still
  * `Redacted`, with the deployer's API URL as `BRAINTRUST_API_URL`. Inside
@@ -30,17 +32,14 @@ import { orDieCredentialsUnavailable } from "alchemy/Auth/Resolve";
 import * as Binding from "alchemy/Binding";
 import * as Namespace from "alchemy/Namespace";
 import * as Output from "alchemy/Output";
-import { isResource } from "alchemy/Resource";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
-import { isPlainData } from "alchemy/Util/data";
-import { sha256Object } from "alchemy/Util/sha256";
+import { Stack } from "alchemy/Stack";
 import * as Effect from "effect/Effect";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
-import { Acl } from "./Acl.ts";
 import { ServiceAccount } from "./ServiceAccount.ts";
 import { ServiceToken } from "./ServiceToken.ts";
 
@@ -62,58 +61,12 @@ export interface BraintrustAuth {
   ) => Effect.Effect<A, E, RuntimeContext>;
 }
 
-const pascal = (value: string) =>
-  value.replace(/(^|_)([a-z])/g, (_, __, letter: string) => letter.toUpperCase());
-
 /**
- * A value as plain data that tells apart any two values that can resolve
- * differently. An Output's `toString()` names a resource by logical id only,
- * so `A/Project` and `B/Project` would both print `Project.projectId`; here
- * a resource is its FQN, and every other expression its fields. A lookup is
- * its type and props: its other fields are core internals.
- */
-const identity = (value: unknown): unknown => {
-  if (isResource(value)) return { resource: value.FQN };
-  if (Output.isExpr(value)) {
-    const expr = (value as { [Output.ExprSymbol]?: object })[Output.ExprSymbol] ?? value;
-    if (Output.isResourceExpr(expr)) return { resource: expr.src.FQN };
-    if (Output.isLookupExpr(expr)) return { lookup: expr.lookupType, props: identity(expr.expr) };
-    return Object.fromEntries(Object.entries(expr).map(([key, field]) => [key, identity(field)]));
-  }
-  // After `isExpr`: an Output proxy is a function too.
-  if (typeof value === "function") return value.toString();
-  if (Array.isArray(value)) return value.map(identity);
-  if (isPlainData(value)) {
-    return Object.fromEntries(Object.entries(value).map(([key, field]) => [key, identity(field)]));
-  }
-  return value;
-};
-
-/**
- * Where a binding's ACLs on `target` live in the host's namespace. A
- * declared resource's ACL ids start with its FQN, so same-named targets in
- * different namespaces get separate ACLs. `/` would nest the ACL's own FQN,
- * and `__` is how state files encode `/`. A `lookup(...)` or `ref(...)` has
- * no FQN, so its ACLs are named by a hash of its identity, in a `lookup` or
- * `ref` namespace: a declared FQN never keeps a `/`, so it cannot land there.
- */
-const targetName = Effect.fn(function* (target: object) {
-  const fqn = (target as { FQN?: unknown }).FQN;
-  if (typeof fqn === "string") return { namespace: undefined, id: fqn.replaceAll("/", "-") };
-  return {
-    namespace: Output.isRefExpr(target) ? "ref" : "lookup",
-    id: (yield* sha256Object(identity(target) as object)).slice(0, 16),
-  };
-});
-
-/**
- * Grants the host's service account `grants` on `objectId`, the id of
- * `target`, and returns an `authorize` that runs calls with the host's
- * token. Grants of the same permission on the same object, from any binding,
- * are one ACL.
+ * Grants the host's service account `grants` on `objectId`, and returns an
+ * `authorize` that runs calls with the host's token. Grants of the same
+ * permission on the same object, from any binding, are one ACL.
  */
 export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
-  target: { readonly FQN: string },
   objectId: Output.Output<string>,
   grants: ReadonlyArray<Grant>,
 ) {
@@ -137,26 +90,21 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
     // the stack satisfies it at plan time.
     const makeAccount = yield* ServiceAccount;
     const makeToken = yield* ServiceToken;
-    const makeAcl = yield* Acl;
+    const stack = yield* Effect.serviceOption(Stack);
     const token = yield* Namespace.push(
       host.LogicalId,
       Effect.gen(function* () {
         const account = yield* makeAccount("BraintrustServiceAccount", {});
-        const { namespace, id: targetId } = yield* targetName(target);
-        for (const grant of grants) {
-          const restrict = grant.restrictObjectType;
-          const acl = makeAcl(
-            `${targetId}${pascal(grant.objectType)}${pascal(grant.permission)}${restrict ? pascal(restrict) : ""}`,
-            {
-              objectType: grant.objectType,
-              objectId,
-              userId: account.serviceAccountId,
-              permission: grant.permission,
-              ...(restrict ? { restrictObjectType: restrict } : {}),
-            },
-          );
-          yield* namespace ? Namespace.push(namespace, acl) : acl;
-        }
+        // Nothing known at plan time tells two bound objects apart (a
+        // lookup's props can be closures over different values), so each
+        // binding gets its own sid by position and the account dedupes the
+        // grants once their ids resolve.
+        const position = Option.isSome(stack)
+          ? (stack.value.bindings[account.FQN]?.length ?? 0)
+          : 0;
+        yield* account.bind(`Grant${position}`, {
+          grants: grants.map((grant) => ({ ...grant, objectId })),
+        });
         return yield* makeToken("BraintrustServiceToken", {
           serviceAccountId: account.serviceAccountId,
         });
@@ -192,7 +140,7 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
  * Each `<Op>Http.ts` is a `Layer.succeed(Cap, makeHttpBinding({ … }))`.
  */
 export const makeHttpBinding =
-  <Target extends { readonly FQN: string }, Client>(options: {
+  <Target, Client>(options: {
     /** The bound object's id, e.g. `experiment.experimentId`. */
     readonly id: (target: Target) => Output.Output<string>;
     readonly grants: ReadonlyArray<Grant>;
@@ -201,7 +149,7 @@ export const makeHttpBinding =
   (target: Target) =>
     Effect.gen(function* () {
       const objectId = options.id(target);
-      const auth = yield* bindBraintrust(target, objectId, options.grants);
+      const auth = yield* bindBraintrust(objectId, options.grants);
       const id: Effect.Effect<string> = yield* (
         objectId as Output.Output<string, never>
       ).asEffect();

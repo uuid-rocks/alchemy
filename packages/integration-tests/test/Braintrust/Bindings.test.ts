@@ -4,7 +4,7 @@ import * as Test from "@alchemy.run/test/Alchemy";
 import * as Core from "@alchemy.run/test/Core";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import * as Namespace from "alchemy/Namespace";
-import type * as Output from "alchemy/Output";
+import * as Output from "alchemy/Output";
 import { type BaseRuntimeContext, RuntimeContext } from "alchemy/RuntimeContext";
 import { Self } from "alchemy/Self";
 import type * as Context from "effect/Context";
@@ -1093,7 +1093,7 @@ let invoked: Braintrust.Function;
 
 describe("Host lifecycle", { tags }, () => {
   test.provider(
-    "an unchanged redeploy keeps a host's account, token and grants, and removing the host removes them",
+    "an unchanged redeploy keeps a host's account, token and grants, a changed binding revokes what it no longer needs, and removing the host removes them",
     (stack) =>
       Effect.gen(function* () {
         yield* stack.destroy();
@@ -1131,6 +1131,23 @@ describe("Host lifecycle", { tags }, () => {
         });
         const deployed = yield* owned;
         expect([deployed.acls.length, deployed.tokens.length]).toEqual([1, 1]);
+
+        // Swapping the binding revokes the grant only it needed, on the same account.
+        const swapped = yield* stack.deploy(
+          Effect.gen(function* () {
+            const bound = yield* project;
+            return yield* host(
+              "RedeployHost",
+              Braintrust.ReadProjectLogs(bound).pipe(
+                Effect.provide(Braintrust.ReadProjectLogsHttp),
+              ),
+            );
+          }),
+        );
+        expect(yield* grantsOf(swapped)).toEqual({
+          serviceAccountId: before.serviceAccountId,
+          grants: [`project_log:${first.projectId}:read`],
+        });
 
         // The project stays, so an empty ACL list on it means the grant was deleted.
         yield* stack.deploy(project);
@@ -1205,6 +1222,46 @@ describe("Looked-up objects", { tags }, () => {
               Effect.forEach(bound, (project) =>
                 Braintrust.ReadDataset(
                   Braintrust.Dataset.lookup({ projectId: project.projectId, name: "lookup-same" }),
+                ),
+              ).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),
+            );
+          }),
+        );
+        const { grants } = yield* grantsOf(env);
+        expect(grants).toEqual(datasets.map((dataset) => `dataset:${dataset.id}:read`).sort());
+        yield* stack.destroy();
+      }),
+    { tags, timeout: 300_000 },
+  );
+
+  test.provider(
+    "grants a host datasets looked up through closures that differ only in what they capture",
+    (stack) =>
+      Effect.gen(function* () {
+        yield* stack.destroy();
+        const projects = Effect.all({
+          A: Braintrust.Project("ClosureA", {}),
+          B: Braintrust.Project("ClosureB", {}),
+        });
+        const deployed = yield* stack.deploy(projects);
+        const datasets = yield* Effect.forEach([deployed.A, deployed.B], (project) =>
+          braintrust.createDataset({ project_id: project.projectId, name: "lookup-same" }),
+        );
+        const env = yield* stack.deploy(
+          Effect.gen(function* () {
+            const { A, B } = yield* projects;
+            const ids = Output.map(Output.all(A.projectId, B.projectId), ([a, b]) => ({
+              A: a,
+              B: b,
+            }));
+            return yield* host(
+              "LookupHost",
+              Effect.forEach(["A", "B"] as const, (key) =>
+                Braintrust.ReadDataset(
+                  Braintrust.Dataset.lookup({
+                    projectId: Output.map(ids, (byKey) => byKey[key]),
+                    name: "lookup-same",
+                  }),
                 ),
               ).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),
             );
