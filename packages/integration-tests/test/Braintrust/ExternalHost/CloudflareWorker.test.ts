@@ -9,8 +9,8 @@ import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import BraintrustWorker, { Dataset, Echo, Experiment } from "./fixtures/worker.ts";
 
-// The test organization's runs have no Cloudflare account; `../Bindings.test.ts`
-// runs every binding in-process instead.
+// Runs without a Cloudflare account (forks, local runs) skip this suite;
+// `../Bindings.test.ts` still runs every binding in-process.
 const hasCloudflare = !!(process.env.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_KEY);
 
 const testOptions = { providers: Layer.mergeAll(Braintrust.providers(), Cloudflare.providers()) };
