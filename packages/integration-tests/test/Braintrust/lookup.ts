@@ -45,16 +45,14 @@ export const expectFound = Effect.fn(function* (
  * cleared. The last attempt's assertion error is the test's failure.
  */
 export const eventually = <A, E, R>(read: Effect.Effect<A, E, R>, check: (value: A) => void) =>
-  Effect.gen(function* () {
-    for (let attempt = 1; attempt < 10; attempt++) {
-      const value = yield* read;
-      if (passes(check, value)) return value;
-      yield* Effect.sleep("500 millis");
-    }
-    const value = yield* read;
-    check(value);
-    return value;
-  });
+  read.pipe(
+    Effect.repeat({
+      until: (value) => passes(check, value),
+      schedule: Schedule.spaced("500 millis"),
+      times: 9,
+    }),
+    Effect.tap((value) => Effect.sync(() => check(value))),
+  );
 
 const passes = <A>(check: (value: A) => void, value: A) => {
   try {
