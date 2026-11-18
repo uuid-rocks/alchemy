@@ -31,12 +31,14 @@ export interface ReadDatasetClient {
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
  *     const records = yield* Braintrust.ReadDataset(dataset);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         const { events, cursor } = yield* records.fetch({ limit: 100 });
- *         return HttpServerResponse.json({ ok: true });
+ *         const { events } = yield* records.fetch({ limit: 100 });
+ *         return yield* HttpServerResponse.json(events);
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),

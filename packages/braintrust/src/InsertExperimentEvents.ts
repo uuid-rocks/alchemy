@@ -36,14 +36,16 @@ export type InsertExperimentEventsClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
  *     const insert = yield* Braintrust.InsertExperimentEvents(experiment);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         yield* insert({
- *           events: [{ input, output, expected, scores: { exact: output === expected ? 1 : 0 } }],
- *         });
- *         return HttpServerResponse.json({ ok: true });
+ *         const request = yield* HttpServerRequest;
+ *         const { input, output, expected } = (yield* request.json) as { input: string; output: string; expected: string };
+ *         yield* insert({ events: [{ input, output, expected, scores: { exact: output === expected ? 1 : 0 } }] });
+ *         return yield* HttpServerResponse.json({ ok: true });
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.InsertExperimentEventsHttp)),

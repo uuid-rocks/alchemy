@@ -11,10 +11,13 @@ import { ProxyRequest, type ProxyRequestClient } from "./ProxyRequest.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const proxy = yield* Braintrust.ProxyRequest(openai);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.ProxyRequestHttp))
+ * const openai = yield* Braintrust.AiSecret("OpenAI", {
+ *   type: "openai",
+ *   secret: Config.Redacted("OPENAI_API_KEY"),
+ * });
+ * const proxy = yield* Braintrust.ProxyRequest(openai).pipe(
+ *   Effect.provide(Braintrust.ProxyRequestHttp),
+ * );
  * ```
  *
  * @layer

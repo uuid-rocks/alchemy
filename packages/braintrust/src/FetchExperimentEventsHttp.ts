@@ -10,10 +10,11 @@ import { FetchExperimentEvents } from "./FetchExperimentEvents.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const fetch = yield* Braintrust.FetchExperimentEvents(experiment);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.FetchExperimentEventsHttp))
+ * const project = yield* Braintrust.Project("Support", {});
+ * const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
+ * const fetch = yield* Braintrust.FetchExperimentEvents(experiment).pipe(
+ *   Effect.provide(Braintrust.FetchExperimentEventsHttp),
+ * );
  * ```
  *
  * @layer

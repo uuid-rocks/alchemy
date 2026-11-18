@@ -28,14 +28,16 @@ export interface WriteExperimentClient {
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
- *     const experimentEvents = yield* Braintrust.WriteExperiment(experiment);
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
+ *     const results = yield* Braintrust.WriteExperiment(experiment);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         yield* experimentEvents.insert({
- *           events: [{ input, output, expected, scores: { exact: output === expected ? 1 : 0 } }],
- *         });
- *         return HttpServerResponse.json({ ok: true });
+ *         const request = yield* HttpServerRequest;
+ *         const { input, output, expected } = (yield* request.json) as { input: string; output: string; expected: string };
+ *         yield* results.insert({ events: [{ input, output, expected, scores: { exact: output === expected ? 1 : 0 } }] });
+ *         return yield* HttpServerResponse.json({ ok: true });
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.WriteExperimentHttp)),

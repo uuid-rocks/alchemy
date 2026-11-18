@@ -36,12 +36,15 @@ export type ProjectLogFeedbackClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
  *     const feedback = yield* Braintrust.ProjectLogFeedback(project);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         yield* feedback({ feedback: [{ id: rowId, scores: { helpful: 1 }, comment: "thumbs up" }] });
- *         return HttpServerResponse.json({ ok: true });
+ *         const request = yield* HttpServerRequest;
+ *         const { id, helpful } = (yield* request.json) as { id: string; helpful: number };
+ *         yield* feedback({ feedback: [{ id, scores: { helpful } }] });
+ *         return yield* HttpServerResponse.json({ ok: true });
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.ProjectLogFeedbackHttp)),

@@ -36,12 +36,16 @@ export type PreviewDatasetRestoreClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
  *     const previewRestore = yield* Braintrust.PreviewDatasetRestore(dataset);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         const { rows_to_restore, rows_to_delete } = yield* previewRestore({ version });
- *         return HttpServerResponse.json({ ok: true });
+ *         const request = yield* HttpServerRequest;
+ *         const { version } = (yield* request.json) as { version: string };
+ *         const preview = yield* previewRestore({ version });
+ *         return yield* HttpServerResponse.json(preview);
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.PreviewDatasetRestoreHttp)),

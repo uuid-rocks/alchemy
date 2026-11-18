@@ -46,12 +46,27 @@ export type InvokeFunctionClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
- *     const classify = yield* Braintrust.InvokeFunction(Classifier);
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const classify = yield* Braintrust.Function("Classify", {
+ *       projectId: project.projectId,
+ *       functionType: "task",
+ *       functionData: {
+ *         type: "code",
+ *         data: {
+ *           type: "inline",
+ *           runtime_context: { runtime: "node", version: "20" },
+ *           code: "function handler(input) { return input.includes('invoice') ? 'billing' : 'general'; }",
+ *         },
+ *       },
+ *     });
+ *     const invoke = yield* Braintrust.InvokeFunction(classify);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         const label = yield* classify({ input: { text: "refund my order" } });
- *         return HttpServerResponse.json({ label });
+ *         const request = yield* HttpServerRequest;
+ *         const question = yield* request.text;
+ *         const queue = yield* invoke({ input: question });
+ *         return yield* HttpServerResponse.json({ queue });
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.InvokeFunctionHttp)),

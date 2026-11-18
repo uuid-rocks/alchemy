@@ -15,10 +15,10 @@ import { ReadWriteProjectLogs, type ReadWriteProjectLogsClient } from "./ReadWri
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const logs = yield* Braintrust.ReadWriteProjectLogs(project);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.ReadWriteProjectLogsHttp))
+ * const project = yield* Braintrust.Project("Support", {});
+ * const logs = yield* Braintrust.ReadWriteProjectLogs(project).pipe(
+ *   Effect.provide(Braintrust.ReadWriteProjectLogsHttp),
+ * );
  * ```
  *
  * @layer

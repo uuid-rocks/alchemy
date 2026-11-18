@@ -36,12 +36,18 @@ export type ProxyEmbeddingsClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const openai = yield* Braintrust.AiSecret("OpenAI", {
+ *       type: "openai",
+ *       secret: Config.Redacted("OPENAI_API_KEY"),
+ *     });
  *     const embed = yield* Braintrust.ProxyEmbeddings(openai);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
+ *         const request = yield* HttpServerRequest;
+ *         const question = yield* request.text;
  *         const embedding = yield* embed({ model: "text-embedding-3-small", input: question });
- *         return HttpServerResponse.json({ ok: true });
+ *         return yield* HttpServerResponse.json(embedding);
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.ProxyEmbeddingsHttp)),

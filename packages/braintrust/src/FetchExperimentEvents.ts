@@ -36,12 +36,14 @@ export type FetchExperimentEventsClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
  *     const fetch = yield* Braintrust.FetchExperimentEvents(experiment);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         const { events, cursor } = yield* fetch({ limit: 100 });
- *         return HttpServerResponse.json({ ok: true });
+ *         const { events } = yield* fetch({ limit: 100 });
+ *         return yield* HttpServerResponse.json(events);
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.FetchExperimentEventsHttp)),

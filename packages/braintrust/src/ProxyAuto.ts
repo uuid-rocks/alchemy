@@ -36,15 +36,21 @@ export type ProxyAutoClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const openai = yield* Braintrust.AiSecret("OpenAI", {
+ *       type: "openai",
+ *       secret: Config.Redacted("OPENAI_API_KEY"),
+ *     });
  *     const call = yield* Braintrust.ProxyAuto(openai);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
+ *         const request = yield* HttpServerRequest;
+ *         const question = yield* request.text;
  *         const completion = yield* call({
  *           model: "gpt-4.1-mini",
  *           messages: [{ role: "user", content: question }],
  *         });
- *         return HttpServerResponse.json({ ok: true });
+ *         return yield* HttpServerResponse.json(completion);
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.ProxyAutoHttp)),

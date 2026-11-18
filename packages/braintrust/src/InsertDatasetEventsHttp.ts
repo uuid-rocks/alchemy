@@ -10,10 +10,11 @@ import { InsertDatasetEvents } from "./InsertDatasetEvents.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const insert = yield* Braintrust.InsertDatasetEvents(dataset);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.InsertDatasetEventsHttp))
+ * const project = yield* Braintrust.Project("Support", {});
+ * const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+ * const insert = yield* Braintrust.InsertDatasetEvents(dataset).pipe(
+ *   Effect.provide(Braintrust.InsertDatasetEventsHttp),
+ * );
  * ```
  *
  * @layer

@@ -15,10 +15,11 @@ import { ReadWriteExperiment, type ReadWriteExperimentClient } from "./ReadWrite
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const experimentEvents = yield* Braintrust.ReadWriteExperiment(experiment);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.ReadWriteExperimentHttp))
+ * const project = yield* Braintrust.Project("Support", {});
+ * const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
+ * const results = yield* Braintrust.ReadWriteExperiment(experiment).pipe(
+ *   Effect.provide(Braintrust.ReadWriteExperimentHttp),
+ * );
  * ```
  *
  * @layer

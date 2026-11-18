@@ -28,14 +28,15 @@ export interface WriteProjectLogsClient {
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
  *     const logs = yield* Braintrust.WriteProjectLogs(project);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         const { row_ids } = yield* logs.insert({
- *           events: [{ input: { question }, output: answer, metadata: { model: "gpt-4.1" } }],
- *         });
- *         return HttpServerResponse.json({ ok: true });
+ *         const request = yield* HttpServerRequest;
+ *         const question = yield* request.text;
+ *         const { row_ids } = yield* logs.insert({ events: [{ input: question, metadata: { route: "/ask" } }] });
+ *         return yield* HttpServerResponse.json({ rowId: row_ids[0] });
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.WriteProjectLogsHttp)),

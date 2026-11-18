@@ -10,10 +10,11 @@ import { FetchDatasetEvents } from "./FetchDatasetEvents.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const fetch = yield* Braintrust.FetchDatasetEvents(dataset);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.FetchDatasetEventsHttp))
+ * const project = yield* Braintrust.Project("Support", {});
+ * const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+ * const fetch = yield* Braintrust.FetchDatasetEvents(dataset).pipe(
+ *   Effect.provide(Braintrust.FetchDatasetEventsHttp),
+ * );
  * ```
  *
  * @layer

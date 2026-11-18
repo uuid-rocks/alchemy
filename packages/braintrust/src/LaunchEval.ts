@@ -42,16 +42,20 @@ export type LaunchEvalClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+ *     const datasetId = yield* dataset.datasetId;
  *     const launch = yield* Braintrust.LaunchEval(project);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
+ *         const dataset_id = yield* datasetId;
  *         const summary = yield* launch({
- *           data: { dataset_id: datasetId },
- *           task: { function_id: taskId },
+ *           data: { dataset_id },
+ *           task: { global_function: "ExactMatch" },
  *           scores: [{ global_function: "ExactMatch" }],
  *         });
- *         return HttpServerResponse.json(summary.scores);
+ *         return yield* HttpServerResponse.json(summary.scores);
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.LaunchEvalHttp)),

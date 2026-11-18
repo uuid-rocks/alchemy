@@ -36,12 +36,14 @@ export type SummarizeExperimentClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
  *     const summarize = yield* Braintrust.SummarizeExperiment(experiment);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         const { scores, metrics } = yield* summarize({ summarize_scores: true });
- *         return HttpServerResponse.json({ ok: true });
+ *         const { scores } = yield* summarize({ summarize_scores: true });
+ *         return yield* HttpServerResponse.json(scores);
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.SummarizeExperimentHttp)),

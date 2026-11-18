@@ -10,10 +10,10 @@ import { WriteProjectLogs, type WriteProjectLogsClient } from "./WriteProjectLog
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const logs = yield* Braintrust.WriteProjectLogs(project);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.WriteProjectLogsHttp))
+ * const project = yield* Braintrust.Project("Support", {});
+ * const logs = yield* Braintrust.WriteProjectLogs(project).pipe(
+ *   Effect.provide(Braintrust.WriteProjectLogsHttp),
+ * );
  * ```
  *
  * @layer

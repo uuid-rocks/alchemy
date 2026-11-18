@@ -10,10 +10,11 @@ import { InsertExperimentEvents } from "./InsertExperimentEvents.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const insert = yield* Braintrust.InsertExperimentEvents(experiment);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.InsertExperimentEventsHttp))
+ * const project = yield* Braintrust.Project("Support", {});
+ * const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
+ * const insert = yield* Braintrust.InsertExperimentEvents(experiment).pipe(
+ *   Effect.provide(Braintrust.InsertExperimentEventsHttp),
+ * );
  * ```
  *
  * @layer

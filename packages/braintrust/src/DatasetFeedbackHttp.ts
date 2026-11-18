@@ -10,10 +10,11 @@ import { DATASET_UPDATE, datasetClients, datasetId } from "./DatasetHttp.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const feedback = yield* Braintrust.DatasetFeedback(dataset);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.DatasetFeedbackHttp))
+ * const project = yield* Braintrust.Project("Support", {});
+ * const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+ * const feedback = yield* Braintrust.DatasetFeedback(dataset).pipe(
+ *   Effect.provide(Braintrust.DatasetFeedbackHttp),
+ * );
  * ```
  *
  * @layer

@@ -29,12 +29,16 @@ export interface WriteDatasetClient {
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
  *     const records = yield* Braintrust.WriteDataset(dataset);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
+ *         const request = yield* HttpServerRequest;
+ *         const { question, answer } = (yield* request.json) as { question: string; answer: string };
  *         yield* records.insert({ events: [{ input: { question }, expected: answer }] });
- *         return HttpServerResponse.json({ ok: true });
+ *         return yield* HttpServerResponse.json({ ok: true });
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.WriteDatasetHttp)),

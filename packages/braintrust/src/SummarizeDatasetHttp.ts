@@ -10,10 +10,11 @@ import { SummarizeDataset } from "./SummarizeDataset.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const summarize = yield* Braintrust.SummarizeDataset(dataset);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.SummarizeDatasetHttp))
+ * const project = yield* Braintrust.Project("Support", {});
+ * const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+ * const summarize = yield* Braintrust.SummarizeDataset(dataset).pipe(
+ *   Effect.provide(Braintrust.SummarizeDatasetHttp),
+ * );
  * ```
  *
  * @layer

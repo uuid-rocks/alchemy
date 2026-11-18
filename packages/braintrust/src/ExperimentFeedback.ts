@@ -36,12 +36,16 @@ export type ExperimentFeedbackClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
  *     const feedback = yield* Braintrust.ExperimentFeedback(experiment);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         yield* feedback({ feedback: [{ id: rowId, scores: { reviewed: 1 } }] });
- *         return HttpServerResponse.json({ ok: true });
+ *         const request = yield* HttpServerRequest;
+ *         const { id } = (yield* request.json) as { id: string };
+ *         yield* feedback({ feedback: [{ id, scores: { reviewed: 1 } }] });
+ *         return yield* HttpServerResponse.json({ ok: true });
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.ExperimentFeedbackHttp)),

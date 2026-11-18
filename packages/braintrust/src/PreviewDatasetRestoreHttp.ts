@@ -10,10 +10,11 @@ import { PreviewDatasetRestore } from "./PreviewDatasetRestore.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const previewRestore = yield* Braintrust.PreviewDatasetRestore(dataset);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.PreviewDatasetRestoreHttp))
+ * const project = yield* Braintrust.Project("Support", {});
+ * const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+ * const previewRestore = yield* Braintrust.PreviewDatasetRestore(dataset).pipe(
+ *   Effect.provide(Braintrust.PreviewDatasetRestoreHttp),
+ * );
  * ```
  *
  * @layer

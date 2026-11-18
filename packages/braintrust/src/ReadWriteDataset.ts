@@ -26,12 +26,17 @@ export interface ReadWriteDatasetClient extends ReadDatasetClient, WriteDatasetC
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
  *     const records = yield* Braintrust.ReadWriteDataset(dataset);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         const { events, cursor } = yield* records.fetch({ limit: 100 });
- *         return HttpServerResponse.json({ ok: true });
+ *         const request = yield* HttpServerRequest;
+ *         const { question, answer } = (yield* request.json) as { question: string; answer: string };
+ *         yield* records.insert({ events: [{ input: { question }, expected: answer }] });
+ *         const { events } = yield* records.fetch({ limit: 100 });
+ *         return yield* HttpServerResponse.json(events);
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.ReadWriteDatasetHttp)),

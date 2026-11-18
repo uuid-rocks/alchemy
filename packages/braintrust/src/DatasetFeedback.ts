@@ -35,12 +35,16 @@ export type DatasetFeedbackClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
  *     const feedback = yield* Braintrust.DatasetFeedback(dataset);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         yield* feedback({ feedback: [{ id: rowId, comment: "expected answer is wrong" }] });
- *         return HttpServerResponse.json({ ok: true });
+ *         const request = yield* HttpServerRequest;
+ *         const { id, comment } = (yield* request.json) as { id: string; comment: string };
+ *         yield* feedback({ feedback: [{ id, comment }] });
+ *         return yield* HttpServerResponse.json({ ok: true });
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.DatasetFeedbackHttp)),

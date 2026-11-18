@@ -28,12 +28,14 @@ export interface ReadExperimentClient {
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
- *     const experimentEvents = yield* Braintrust.ReadExperiment(experiment);
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
+ *     const results = yield* Braintrust.ReadExperiment(experiment);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         const { events, cursor } = yield* experimentEvents.fetch({ limit: 100 });
- *         return HttpServerResponse.json({ ok: true });
+ *         const { events } = yield* results.fetch({ limit: 100 });
+ *         return yield* HttpServerResponse.json(events);
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.ReadExperimentHttp)),

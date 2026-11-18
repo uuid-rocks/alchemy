@@ -35,12 +35,14 @@ export type SummarizeDatasetClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
  *     const summarize = yield* Braintrust.SummarizeDataset(dataset);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
  *         const { data_summary } = yield* summarize({ summarize_data: true });
- *         return HttpServerResponse.json({ ok: true });
+ *         return yield* HttpServerResponse.json({ records: data_summary?.total_records });
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.SummarizeDatasetHttp)),

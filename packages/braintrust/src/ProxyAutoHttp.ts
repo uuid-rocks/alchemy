@@ -11,10 +11,13 @@ import { AI_SECRET_READ, aiSecretId } from "./ProxyHttp.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * Effect.gen(function* () {
- *   const call = yield* Braintrust.ProxyAuto(openai);
- *   // ...
- * }).pipe(Effect.provide(Braintrust.ProxyAutoHttp))
+ * const openai = yield* Braintrust.AiSecret("OpenAI", {
+ *   type: "openai",
+ *   secret: Config.Redacted("OPENAI_API_KEY"),
+ * });
+ * const call = yield* Braintrust.ProxyAuto(openai).pipe(
+ *   Effect.provide(Braintrust.ProxyAutoHttp),
+ * );
  * ```
  *
  * @layer

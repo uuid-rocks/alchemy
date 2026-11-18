@@ -24,12 +24,17 @@ export interface ReadWriteExperimentClient extends ReadExperimentClient, WriteEx
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
- *     const experimentEvents = yield* Braintrust.ReadWriteExperiment(experiment);
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
+ *     const results = yield* Braintrust.ReadWriteExperiment(experiment);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         const { events, cursor } = yield* experimentEvents.fetch({ limit: 100 });
- *         return HttpServerResponse.json({ ok: true });
+ *         const request = yield* HttpServerRequest;
+ *         const { input, output } = (yield* request.json) as { input: string; output: string };
+ *         yield* results.insert({ events: [{ input, output }] });
+ *         const { events } = yield* results.fetch({ limit: 100 });
+ *         return yield* HttpServerResponse.json(events);
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.ReadWriteExperimentHttp)),

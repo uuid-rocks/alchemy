@@ -40,12 +40,16 @@ export type RestoreDatasetClient = (
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
  *     const restore = yield* Braintrust.RestoreDataset(dataset);
  *
  *     return {
  *       fetch: Effect.gen(function* () {
- *         const { rows_restored, rows_deleted } = yield* restore({ version });
- *         return HttpServerResponse.json({ ok: true });
+ *         const request = yield* HttpServerRequest;
+ *         const { version } = (yield* request.json) as { version: string };
+ *         const restored = yield* restore({ version });
+ *         return yield* HttpServerResponse.json(restored);
  *       }).pipe(Effect.orDie),
  *     };
  *   }).pipe(Effect.provide(Braintrust.RestoreDatasetHttp)),
