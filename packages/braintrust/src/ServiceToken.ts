@@ -2,6 +2,7 @@ import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import { deepEqual, isResolved } from "alchemy/Diff";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
@@ -20,7 +21,8 @@ export interface ServiceTokenProps {
    * Seconds from creation until the token expires. Braintrust refuses a
    * token that would outlive the token creating it, so when omitted the
    * token never expires if the deployer's token doesn't, and otherwise
-   * expires a minute before it.
+   * expires a minute before it. A deploy in the last tenth of the token's
+   * lifetime, or after it expired, replaces it with a new key.
    */
   expiresInSeconds?: number;
 }
@@ -66,7 +68,8 @@ export type ServiceToken = Resource<
  *
  * :::caution
  * Every prop replaces the token: a new key is created and the old one is
- * revoked once everything using the token has been updated.
+ * revoked once everything using the token has been updated. So does a
+ * deploy in the last tenth of an expiring token's lifetime.
  * :::
  *
  * ### Creating a Service Token
@@ -130,10 +133,19 @@ export const ServiceTokenProvider = () =>
     Effect.gen(function* () {
       return {
         stables: ["serviceTokenId", "serviceAccountId", "key"],
-        diff: Effect.fn(function* ({ news, olds }) {
+        diff: Effect.fn(function* ({ news, olds, output }) {
           if (!isResolved(news)) return undefined;
           // A token has no update; any change is a new token.
           if (!deepEqual(news, olds)) return { action: "replace" } as const;
+          // A token without an asked-for expiry is capped by the deployer's,
+          // so nothing else would renew it before its hosts lose access.
+          if (output?.expiresAt) {
+            const expires = Date.parse(output.expiresAt);
+            const lifetime = expires - Date.parse(output.created ?? output.expiresAt);
+            if ((yield* Clock.currentTimeMillis) >= expires - lifetime / 10) {
+              return { action: "replace" } as const;
+            }
+          }
         }),
         read: Effect.fn(function* ({ output }) {
           // Without state there is no key to recover, so nothing is ours.

@@ -2,6 +2,7 @@ import * as Braintrust from "@alchemy.run/braintrust";
 import { expect } from "@alchemy.run/test";
 import * as Test from "@alchemy.run/test/Alchemy";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Result from "effect/Result";
@@ -91,6 +92,30 @@ test.provider(
 
       yield* stack.destroy();
       yield* expectTokenGone(rotated.serviceTokenId);
+    }),
+  { tags, timeout: 120_000 },
+);
+
+test.provider(
+  "a deploy replaces an expired token",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const token = yield* stack.deploy(program(30));
+      expect(token.expiresAt).toBeTypeOf("string");
+      const now = yield* Clock.currentTimeMillis;
+      yield* Effect.sleep(Math.max(0, Date.parse(token.expiresAt!) - now) + 1_000);
+
+      const plan = yield* stack.plan(program(30));
+      expect(plan.resources.Token.action).toBe("replace");
+      const renewed = yield* stack.deploy(program(30));
+      expect(renewed.serviceTokenId).not.toBe(token.serviceTokenId);
+      expect(yield* accepts(renewed.key)).toBe(true);
+      yield* expectTokenGone(token.serviceTokenId);
+
+      yield* stack.destroy();
+      yield* expectTokenGone(renewed.serviceTokenId);
     }),
   { tags, timeout: 120_000 },
 );
