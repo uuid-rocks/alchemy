@@ -26,12 +26,6 @@ const findColumn = (column: Braintrust.CustomColumnAttributes) =>
     })
     .pipe(Effect.map(({ objects }) => objects.find((c) => c.id === column.customColumnId)));
 
-const getColumn = (column: Braintrust.CustomColumnAttributes) =>
-  findColumn(column).pipe(
-    Effect.tap((found) => Effect.sync(() => expect(found).toBeDefined())),
-    Effect.map((found) => found!),
-  );
-
 const expectColumnGone = (column: Braintrust.CustomColumnAttributes) =>
   Effect.gen(function* () {
     const found = yield* findColumn(column).pipe(
@@ -65,9 +59,10 @@ test.provider(
 
       const column = yield* stack.deploy(onLogs({ expr: "metadata.model" }));
       expect(column.variant).toBe("project_log");
-      const created = yield* getColumn(column);
-      expect(created.name).toBe(column.name);
-      expect(created.expr).toBe("metadata.model");
+      yield* eventually(findColumn(column), (created) => {
+        expect(created?.name).toBe(column.name);
+        expect(created?.expr).toBe("metadata.model");
+      });
       yield* expectFound(
         Braintrust.CustomColumn.lookup({
           objectType: "project",
@@ -91,9 +86,9 @@ test.provider(
         onLogs({ expr: "metadata.provider", variant: "project_log" }),
       );
       expect(updated.customColumnId).toBe(column.customColumnId);
-      yield* eventually(getColumn(column), (after) => {
-        expect(after.expr).toBe("metadata.provider");
-        expect(after.name).toBe(column.name);
+      yield* eventually(findColumn(column), (after) => {
+        expect(after?.expr).toBe("metadata.provider");
+        expect(after?.name).toBe(column.name);
       });
 
       yield* stack.deploy(Braintrust.Project("Project", {}));
@@ -124,8 +119,8 @@ test.provider(
       const first = yield* stack.deploy(program("experiment"));
       const moved = yield* stack.deploy(program("experiment_list"));
       expect(moved.customColumnId).not.toBe(first.customColumnId);
-      yield* eventually(getColumn(moved), (observed) => {
-        expect(observed.variant).toBe("experiment_list");
+      yield* eventually(findColumn(moved), (observed) => {
+        expect(observed?.variant).toBe("experiment_list");
       });
       yield* expectColumnGone(first);
 
@@ -150,9 +145,9 @@ test.provider(
         onLogs({ name: testName("alchemy-test-bt-column-b"), expr }),
       );
       expect(renamed.customColumnId).toBe(column.customColumnId);
-      yield* eventually(getColumn(column), (after) => {
-        expect(after.name).toBe(testName("alchemy-test-bt-column-b"));
-        expect(after.expr).toBe(expr);
+      yield* eventually(findColumn(column), (after) => {
+        expect(after?.name).toBe(testName("alchemy-test-bt-column-b"));
+        expect(after?.expr).toBe(expr);
       });
 
       yield* stack.deploy(Braintrust.Project("Project", {}));
@@ -186,8 +181,8 @@ test.provider(
 
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.customColumnId).toBe(foreign.id);
-      yield* eventually(getColumn(adopted), (observed) => {
-        expect(observed.expr).toBe("metadata.adopted");
+      yield* eventually(findColumn(adopted), (observed) => {
+        expect(observed?.expr).toBe("metadata.adopted");
       });
 
       yield* stack.deploy(Braintrust.Project("Project", {}));
