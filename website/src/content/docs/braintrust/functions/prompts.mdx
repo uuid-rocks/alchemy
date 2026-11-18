@@ -93,7 +93,7 @@ const politeness = yield* Braintrust.Prompt("Politeness", {
 
 Braintrust's **AI proxy** takes OpenAI's request format for any provider, picks the provider from `model`, and calls it with the organization's AI secret. A Worker can call models with that key without ever holding it.
 
-`ProxyChatCompletions` binds one AI secret. The host gets its own service token with `read` on that secret only, so the proxy uses this key and no other:
+`ProxyChatCompletions` binds one AI secret: the host's own service token gets `read` on it. The proxy uses any AI secret that token can read, and picks among them by `model`, so bind one secret per provider. A host bound to two secrets for the same provider can't choose which one a call uses.
 
 ```typescript title="src/openai.ts"
 import * as Braintrust from "@alchemy.run/braintrust";
