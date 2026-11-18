@@ -112,8 +112,8 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
         // lookup's props can be closures over different values), so each
         // binding gets its own sid by position and the grants are deduped
         // once their ids resolve. The position is read and taken in one
-        // step: concurrent bindings that read the same position get the
-        // same sid, and core keeps only one row per sid.
+        // `Effect.sync`, so concurrent bindings never share a sid (core
+        // would keep only one row per sid and drop the other's grants).
         const index = yield* Effect.sync(() => {
           const counters = grantCounters.get(stackKey) ?? new Map<string, number>();
           grantCounters.set(stackKey, counters);
