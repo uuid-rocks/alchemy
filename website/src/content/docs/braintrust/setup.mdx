@@ -40,7 +40,7 @@ It is saved under `~/.alchemy/credentials/<profile>/`. Leave the API URL empty u
 
 ## CI
 
-In CI (`CI=true`), profiles are bypassed. Set `BRAINTRUST_API_KEY`, and `BRAINTRUST_API_URL` for a self-hosted data plane.
+`BRAINTRUST_API_KEY`, set in the environment or in `.env`, is used instead of the profile wherever it's set, in CI or not. In CI (`CI=true`) there are no profiles, so set it there, and `BRAINTRUST_API_URL` for a self-hosted data plane.
 
 See [Profiles](/environments/profiles) for how credentials are stored and switched.
 

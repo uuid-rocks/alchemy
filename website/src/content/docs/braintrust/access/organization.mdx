@@ -24,11 +24,11 @@ Every API call carries a key, and a key acts as one member. A user's **API key**
 
 ## Sign in with a profile
 
-Alchemy deploys with the key in your [profile](/environments/profiles). Add Braintrust to your `default` profile and paste a key:
+Alchemy deploys with the key in your [profile](/environments/profiles), unless `BRAINTRUST_API_KEY` is set in the environment or in `.env`: that key wins wherever it's set. Add Braintrust to your `default` profile and paste a key:
 
 <PackageManagers run="alchemy profile edit --add Braintrust" />
 
-A **service token** is the better choice for most Stacks: Braintrust only lets a service token create other service tokens, and bindings create one for each Worker or Function. Your own **API key** works for a Stack of projects, datasets, prompts and access control. Either way, the key's organization is where everything is created. See [Setup](/braintrust/setup).
+A Stack that uses bindings or declares service tokens needs a **service token**: Braintrust only lets a service token create other service tokens, and bindings create one for each Worker or Function. Your own **API key** works for a Stack of projects, datasets, prompts and access control. Either way, the key's organization is where everything is created. See [Setup](/braintrust/setup).
 
 ## One organization per environment
 
@@ -82,7 +82,7 @@ The organization's own settings are a resource too, `Braintrust.OrganizationSett
 
 ## In CI
 
-With `CI=true`, Alchemy skips the profile and reads `BRAINTRUST_API_KEY` from the environment, plus `BRAINTRUST_API_URL` for a self-hosted data plane. See [CI](/environments/ci).
+With `CI=true` there are no profiles, so Alchemy reads `BRAINTRUST_API_KEY` from the environment, plus `BRAINTRUST_API_URL` for a self-hosted data plane. See [CI](/environments/ci).
 
 ## Next
 
