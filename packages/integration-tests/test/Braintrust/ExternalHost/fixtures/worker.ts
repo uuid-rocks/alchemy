@@ -37,11 +37,14 @@ export default class BraintrustWorker extends Cloudflare.Worker<BraintrustWorker
   { main: import.meta.url },
   Effect.gen(function* () {
     const project = yield* Project;
+    const boundExperiment = yield* Experiment;
+    const boundDataset = yield* Dataset;
+    const secret = yield* Secret;
     const logs = yield* Braintrust.ReadWriteProjectLogs(project);
-    const experiment = yield* Braintrust.ReadExperiment(yield* Experiment);
-    const dataset = yield* Braintrust.ReadWriteDataset(yield* Dataset);
+    const experiment = yield* Braintrust.ReadExperiment(boundExperiment);
+    const dataset = yield* Braintrust.ReadWriteDataset(boundDataset);
     const launch = yield* Braintrust.LaunchEval(project);
-    const chat = yield* Braintrust.ProxyChatCompletions(yield* Secret);
+    const chat = yield* Braintrust.ProxyChatCompletions(secret);
 
     const respond = (effect: Effect.Effect<unknown, unknown, RuntimeContext>) =>
       effect.pipe(
