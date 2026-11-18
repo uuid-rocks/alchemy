@@ -3,21 +3,19 @@ import type * as Effect from "effect/Effect";
 import type { Dataset } from "./Dataset.ts";
 import type { DatasetFeedbackClient } from "./DatasetFeedback.ts";
 import type { InsertDatasetEventsClient } from "./InsertDatasetEvents.ts";
-import type { RestoreDatasetClient } from "./RestoreDataset.ts";
 
 export interface WriteDatasetClient {
   /** Add or update records in a Braintrust dataset. */
   readonly insert: InsertDatasetEventsClient;
   /** Add comments and corrections to records of a Braintrust dataset. */
   readonly feedback: DatasetFeedbackClient;
-  /** Restore a Braintrust dataset to an earlier version. */
-  readonly restore: RestoreDatasetClient;
 }
 
 /**
  * Write to the dataset from a Worker, Function or any other host: `insert`,
- * `feedback`, `restore`. Calls take no `dataset_id`: the dataset is fixed by
- * `WriteDataset(dataset)`.
+ * `feedback`. Calls take no `dataset_id`: the dataset is fixed by
+ * `WriteDataset(dataset)`. To restore an earlier version, bind
+ * `RestoreDataset`.
  *
  * The host gets its own Braintrust service account and token, with `update`
  * on `dataset` for this dataset only. Braintrust has no workload identity,

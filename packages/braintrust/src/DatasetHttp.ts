@@ -18,6 +18,7 @@ export const datasetId = (dataset: Dataset) => dataset.datasetId;
 
 export const DATASET_READ: Grant = { objectType: "dataset", permission: "read" };
 export const DATASET_UPDATE: Grant = { objectType: "dataset", permission: "update" };
+export const DATASET_DELETE: Grant = { objectType: "dataset", permission: "delete" };
 
 /** Every client method on the dataset, each sending the bound id. */
 export const datasetClients = (auth: BraintrustAuth, id: Effect.Effect<string>) => ({

@@ -20,13 +20,18 @@ export type RestoreDatasetClient = (
 >;
 
 /**
- * Restore a Braintrust dataset to an earlier version. Calls take no
- * `dataset_id`: the dataset is fixed by `RestoreDataset(dataset)`.
+ * Restore a Braintrust dataset to an earlier version: records added since
+ * that version are deleted, and records deleted since are brought back.
+ * Calls take no `dataset_id`: the dataset is fixed by
+ * `RestoreDataset(dataset)`.
  *
  * The host gets its own Braintrust service account and token, with `update`
- * on `dataset` for this dataset only. Braintrust has no workload identity,
- * so the token is created at deploy and bound into the host as a secret;
- * destroying the host revokes it.
+ * and `delete` on `dataset` for this dataset only. Braintrust checks a
+ * restore's deletions as `delete` on the dataset, and that permission also
+ * lets the token delete the dataset itself, so `WriteDataset` and
+ * `ReadWriteDataset` leave restore out. Braintrust has no workload
+ * identity, so the token is created at deploy and bound into the host as a
+ * secret; destroying the host revokes it.
  *
  * ### Restoring a version
  * **Example:** RestoreDataset from a Worker

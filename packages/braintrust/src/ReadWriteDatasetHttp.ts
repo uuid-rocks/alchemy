@@ -33,7 +33,6 @@ export const ReadWriteDatasetHttp = Layer.succeed(
         previewRestore: clients.previewRestore,
         insert: clients.insert,
         feedback: clients.feedback,
-        restore: clients.restore,
       };
     },
   }),

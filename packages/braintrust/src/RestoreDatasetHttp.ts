@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { makeHttpBinding } from "./BraintrustBindings.ts";
-import { DATASET_UPDATE, datasetClients, datasetId } from "./DatasetHttp.ts";
+import { DATASET_DELETE, DATASET_UPDATE, datasetClients, datasetId } from "./DatasetHttp.ts";
 import { RestoreDataset } from "./RestoreDataset.ts";
 
 /**
@@ -24,7 +24,9 @@ export const RestoreDatasetHttp = Layer.succeed(
   RestoreDataset,
   makeHttpBinding({
     id: datasetId,
-    grants: [DATASET_UPDATE],
+    // A restore deletes the records added since the version, which Braintrust
+    // checks as `delete` on the dataset.
+    grants: [DATASET_UPDATE, DATASET_DELETE],
     client: (auth, id) => datasetClients(auth, id).restore,
   }),
 );

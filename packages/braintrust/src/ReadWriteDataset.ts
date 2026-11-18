@@ -9,9 +9,10 @@ export interface ReadWriteDatasetClient extends ReadDatasetClient, WriteDatasetC
 
 /**
  * Read and write the dataset from a Worker, Function or any other host:
- * `fetch`, `summarize`, `previewRestore`, `insert`, `feedback`, `restore`.
+ * `fetch`, `summarize`, `previewRestore`, `insert`, `feedback`.
  * Calls take no `dataset_id`: the dataset is fixed by
- * `ReadWriteDataset(dataset)`.
+ * `ReadWriteDataset(dataset)`. To restore an earlier version, bind
+ * `RestoreDataset`.
  *
  * The host gets its own Braintrust service account and token, with `read`
  * and `update` on `dataset` for this dataset only. Braintrust has no

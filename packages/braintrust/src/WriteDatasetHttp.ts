@@ -30,7 +30,6 @@ export const WriteDatasetHttp = Layer.succeed(
       return {
         insert: clients.insert,
         feedback: clients.feedback,
-        restore: clients.restore,
       };
     },
   }),
