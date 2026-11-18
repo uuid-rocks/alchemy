@@ -20,6 +20,21 @@ export const Dataset = Effect.gen(function* () {
   return yield* Braintrust.Dataset("ExternalHostDataset", { projectId: project.projectId });
 });
 
+export const Echo = Effect.gen(function* () {
+  const project = yield* Project;
+  return yield* Braintrust.Function("ExternalHostEcho", {
+    projectId: project.projectId,
+    functionData: {
+      type: "code",
+      data: {
+        type: "inline",
+        runtime_context: { runtime: "node", version: "20" },
+        code: "async function handler(input) { return input; }",
+      },
+    },
+  });
+});
+
 // Not a real OpenAI key: a call that reaches OpenAI with it is answered 401.
 export const Secret = Braintrust.AiSecret("ExternalHostSecret", {
   type: "openai",
@@ -40,11 +55,16 @@ export default class BraintrustWorker extends Cloudflare.Worker<BraintrustWorker
     const boundExperiment = yield* Experiment;
     const boundDataset = yield* Dataset;
     const secret = yield* Secret;
+    const echo = yield* Echo;
     const logs = yield* Braintrust.ReadWriteProjectLogs(project);
     const experiment = yield* Braintrust.ReadExperiment(boundExperiment);
     const dataset = yield* Braintrust.ReadWriteDataset(boundDataset);
     const launch = yield* Braintrust.LaunchEval(project);
     const chat = yield* Braintrust.ProxyChatCompletions(secret);
+    const logWriter = yield* Braintrust.WriteProjectLogs(project);
+    const experimentWriter = yield* Braintrust.WriteExperiment(boundExperiment);
+    const restore = yield* Braintrust.RestoreDataset(boundDataset);
+    const invoke = yield* Braintrust.InvokeFunction(echo);
 
     const respond = (effect: Effect.Effect<unknown, unknown, RuntimeContext>) =>
       effect.pipe(
@@ -76,8 +96,34 @@ export default class BraintrustWorker extends Cloudflare.Worker<BraintrustWorker
             );
           case "/dataset/insert":
             return yield* respond(
-              dataset.insert({ events: [{ id: "worker-record", input: "q" }] }),
+              dataset.insert({
+                events: [{ id: url.searchParams.get("id") ?? "worker-record", input: "q" }],
+              }),
             );
+          case "/dataset/restore":
+            return yield* respond(restore({ version: url.searchParams.get("version") ?? "" }));
+          case "/logs/write":
+            return yield* respond(
+              Effect.all({
+                inserted: logWriter.insert({ events: [{ id: "worker-write-log", input: "q" }] }),
+                feedback: logWriter.feedback({
+                  feedback: [{ id: "worker-write-log", scores: { helpful: 1 } }],
+                }),
+              }),
+            );
+          case "/experiment/write":
+            return yield* respond(
+              Effect.all({
+                inserted: experimentWriter.insert({
+                  events: [{ id: "worker-result", input: "q", output: "a", scores: { ok: 1 } }],
+                }),
+                feedback: experimentWriter.feedback({
+                  feedback: [{ id: "worker-result", comment: "checked" }],
+                }),
+              }),
+            );
+          case "/invoke":
+            return yield* respond(invoke({ input: { echo: "hi" } }));
           case "/eval":
             return yield* respond(
               launch({
@@ -106,6 +152,10 @@ export default class BraintrustWorker extends Cloudflare.Worker<BraintrustWorker
         Braintrust.ReadWriteDatasetHttp,
         Braintrust.LaunchEvalHttp,
         Braintrust.ProxyChatCompletionsHttp,
+        Braintrust.WriteProjectLogsHttp,
+        Braintrust.WriteExperimentHttp,
+        Braintrust.RestoreDatasetHttp,
+        Braintrust.InvokeFunctionHttp,
       ),
     ),
   ),

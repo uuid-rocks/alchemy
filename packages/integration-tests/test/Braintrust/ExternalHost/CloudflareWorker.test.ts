@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
-import BraintrustWorker, { Dataset, Experiment } from "./fixtures/worker.ts";
+import BraintrustWorker, { Dataset, Echo, Experiment } from "./fixtures/worker.ts";
 
 // The test organization's runs have no Cloudflare account; `../Bindings.test.ts`
 // runs every binding in-process instead.
@@ -48,6 +48,7 @@ describe.skipIf(!hasCloudflare)(
           Effect.gen(function* () {
             const worker = yield* BraintrustWorker;
             yield* Experiment;
+            yield* Echo;
             const dataset = yield* Dataset;
             return { url: worker.url.as<string>(), datasetId: dataset.datasetId };
           }),
@@ -107,6 +108,72 @@ describe.skipIf(!hasCloudflare)(
         const body = yield* call("/dataset/insert");
         expectOk(body);
         expect(body.result.row_ids).toEqual(["worker-record"]);
+      }),
+      { timeout: 240_000 },
+    );
+
+    test(
+      "RestoreDataset restores the dataset to an earlier version",
+      Effect.gen(function* () {
+        expectOk(yield* call("/dataset/insert?id=restore-kept"));
+        const kept = yield* call("/dataset").pipe(
+          Effect.map((body) =>
+            body.result?.page.events.find((event: any) => event.id === "restore-kept"),
+          ),
+          Effect.repeat({
+            until: (event) => event !== undefined,
+            schedule: Schedule.spaced("2 seconds"),
+            times: 30,
+          }),
+        );
+        expectOk(yield* call("/dataset/insert?id=restore-dropped"));
+        // A restore right after an insert misses it for a while; restoring the
+        // same version again is a no-op once done.
+        const restored = yield* call(`/dataset/restore?version=${kept._xact_id}`).pipe(
+          Effect.repeat({
+            until: (body) => body.result?.rows_deleted > 0,
+            schedule: Schedule.spaced("3 seconds"),
+            times: 30,
+          }),
+        );
+        expectOk(restored);
+        expect(restored.result).toMatchObject({ rows_restored: 0, rows_deleted: 1 });
+        const after = yield* call("/dataset");
+        const ids = after.result.page.events.map((event: any) => event.id);
+        expect(ids).toContain("restore-kept");
+        expect(ids).not.toContain("restore-dropped");
+      }),
+      { timeout: 240_000 },
+    );
+
+    test(
+      "WriteProjectLogs logs an event and feedback",
+      Effect.gen(function* () {
+        const body = yield* call("/logs/write");
+        expectOk(body);
+        expect(body.result.inserted.row_ids).toEqual(["worker-write-log"]);
+        expect(body.result.feedback.status).toBe("success");
+      }),
+      { timeout: 240_000 },
+    );
+
+    test(
+      "WriteExperiment records a result and feedback",
+      Effect.gen(function* () {
+        const body = yield* call("/experiment/write");
+        expectOk(body);
+        expect(body.result.inserted.row_ids).toEqual(["worker-result"]);
+        expect(body.result.feedback.status).toBe("success");
+      }),
+      { timeout: 240_000 },
+    );
+
+    test(
+      "InvokeFunction runs the bound function",
+      Effect.gen(function* () {
+        const body = yield* call("/invoke");
+        expectOk(body);
+        expect(body.result).toEqual({ echo: "hi" });
       }),
       { timeout: 240_000 },
     );
