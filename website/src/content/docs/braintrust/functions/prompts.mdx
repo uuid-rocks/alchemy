@@ -12,14 +12,14 @@ Every change to a prompt adds a **version**. Braintrust calls the model with the
 <Tree
   nodes={[
     {
-      id: "org", label: "acme", type: "organization", icon: "brand:braintrust", colGap: 3,
+      id: "org", label: "acme", type: "organization", icon: "brand:braintrust", colGap: 6,
       areas: ["project openai"],
       phoneAreas: ["project", "openai"],
     },
     {
       id: "project", label: "support", type: "project", parent: "org", icon: "folder", colGap: 3.5,
       areas: ["baseline summarize", "baseline politeness"],
-      phoneAreas: ["summarize politeness", "baseline baseline"],
+      phoneAreas: ["baseline baseline", "summarize politeness"],
     },
     { id: "baseline", label: "baseline", type: "experiment", parent: "project", icon: "flask-conical" },
     { id: "summarize", label: "summarize-ticket", type: "prompt · task", parent: "project", tone: "accent", icon: "message-square" },

@@ -1017,8 +1017,35 @@ Observability as Stack resources — datasets, monitors, notifiers. The exporter
 
 Braintrust evals as Stack resources: projects, datasets, experiments, prompts, functions, scores, automations, and roles, groups and ACLs.
 
-- [Braintrust](https://alchemy.run/braintrust) — Evals as resources — projects, datasets, experiments, prompts, scorers and access control declared next to the app they evaluate.
+- [Braintrust](https://alchemy.run/braintrust) — Declare Braintrust projects, datasets, experiments, prompts, scorers and access control in the same TypeScript program as the app they evaluate.
+- [What is Braintrust?](https://alchemy.run/braintrust/what-is-braintrust) — The concepts behind Braintrust (organizations, projects, logs, datasets, experiments, scorers, prompts and functions, AI secrets) and how @alchemy.run/braintrust models each of them.
 - [Setup](https://alchemy.run/braintrust/setup) — Connect alchemy to your Braintrust organization with an API key or a service token.
+
+## Braintrust — Accounts & access
+
+- [AI keys and secrets](https://alchemy.run/braintrust/access/secrets) — Store the model provider keys Braintrust calls models with, and the environment variables your functions read, from Config values in your Stack.
+- [Organization and keys](https://alchemy.run/braintrust/access/organization) — How a Braintrust organization holds your projects and members, which key Alchemy deploys with, and how your Stack creates service accounts and tokens with narrower access.
+- [Roles, groups and ACLs](https://alchemy.run/braintrust/access/access-control) — Give people and service accounts access to Braintrust projects, datasets and experiments with groups, roles and ACLs declared in your Stack.
+
+## Braintrust — Evals
+
+- [Datasets and snapshots](https://alchemy.run/braintrust/evals/datasets) — Declare the Braintrust datasets your evals run against, pin a version with a snapshot, and read and write records from your app.
+- [Experiments](https://alchemy.run/braintrust/evals/experiments) — Declare a baseline Braintrust experiment that other runs compare with, and run evals from your app with the LaunchEval binding.
+- [Projects](https://alchemy.run/braintrust/evals/projects) — Declare Braintrust projects, one per AI feature and stage, configure how experiments are compared, and share access across projects with project groups.
+
+## Braintrust — Prompts & functions
+
+- [Environments](https://alchemy.run/braintrust/functions/environments) — Declare Braintrust environments like staging and production, the labels that say which version of a prompt or function your code should load.
+- [Functions and scorers](https://alchemy.run/braintrust/functions/functions) — Declare Braintrust functions as inline TypeScript or Python, or wrap a built-in scorer, use them as scorers, tasks and tools, and invoke them from a Worker.
+- [MCP servers](https://alchemy.run/braintrust/functions/mcp-servers) — Register remote MCP servers in a Braintrust project, so prompts can use their tools.
+- [Prompts](https://alchemy.run/braintrust/functions/prompts) — Declare versioned Braintrust prompts, use them as LLM-as-a-judge scorers, and call models through Braintrust's AI proxy from a Worker.
+
+## Braintrust — Observability
+
+- [Automations](https://alchemy.run/braintrust/observability/automations) — Declare Braintrust automations that alert you when logs match a filter, export logs on a schedule, or delete them after a retention period.
+- [Human review](https://alchemy.run/braintrust/observability/review) — Declare the scores reviewers fill in and the tags they apply to Braintrust logs, experiments and datasets, and record your users' feedback from a Worker.
+- [Logs and ingest keys](https://alchemy.run/braintrust/observability/logs) — Log your app's production traces to a Braintrust project from a Worker with the InsertProjectLogs binding, read them back, and give browser clients an ingest key.
+- [Views and columns](https://alchemy.run/braintrust/observability/views) — Save shared Braintrust views of a project's logs, add columns computed from each row, and embed your own page next to every span.
 
 ## GitHub
 
@@ -1220,4 +1247,4 @@ A domain-driven design framework: model commands, events, aggregates, views, pro
 
 Service-level API reference, generated from JSDoc on the source `.ts` files via `bun scripts/generate-api-reference.ts`. Each page groups resources and capabilities by service, with a heading per resource and examples extracted from source JSDoc.
 
-The service-level pages are indexed in [llms-full.txt](https://alchemy.run/llms-full.txt), which repeats this entire file plus one link per service. Warning: it is large (~259 KB) — only fetch it when you need to locate a specific resource's reference page.
+The service-level pages are indexed in [llms-full.txt](https://alchemy.run/llms-full.txt), which repeats this entire file plus one link per service. Warning: it is large (~263 KB) — only fetch it when you need to locate a specific resource's reference page.

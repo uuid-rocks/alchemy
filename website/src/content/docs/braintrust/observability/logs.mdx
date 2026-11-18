@@ -15,7 +15,7 @@ Writing logs needs a key with `update` on the project's logs. A Worker gets its 
     { id: "browser", label: "browser", type: "your web app", icon: "app-window", specs: [["key", "ingest key"]] },
     { id: "org", label: "acme", type: "organization", icon: "brand:braintrust" },
     { id: "project", label: "support", type: "project", parent: "org", icon: "folder" },
-    { id: "logs", label: "logs", type: "project logs", parent: "project", tone: "accent", icon: "scroll-text" },
+    { id: "logs", label: "logs", type: "project logs", parent: "project", tone: "accent", icon: "scroll-text", specs: [["holds", "traces of spans"], ["each", "input · output"], ["later", "scores · tags"]] },
   ]}
   areas={["worker org", "browser org"]}
   phoneAreas={["org org", "worker browser"]}
