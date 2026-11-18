@@ -305,21 +305,23 @@ export const ExperimentProvider = () =>
       return {
         stables: ["experimentId", "projectId"],
         diff: Effect.fn(function* ({ news, olds, output }) {
-          // An id that resolves only at apply belongs to a new parent, and apply
-          // doesn't diff again, so the move is planned as a replace now.
-          if (!isResolved(news.projectId)) return { action: "replace" } as const;
-          // An adoption's `olds` are the new props; `output` is what it found.
-          // Checked before the other props resolve, for the same reason.
-          const unlinked = (key: "datasetId" | "parametersId") =>
-            (output?.[key] ?? olds[key]) !== undefined && news[key] === undefined;
-          if (unlinked("datasetId") || unlinked("parametersId")) {
-            // A replacement under the same name would find the old
-            // experiment again, so it goes first.
-            return {
-              action: "replace",
-              deleteFirst:
-                news.name !== undefined && (!isResolved(news.name) || news.name === olds.name),
-            } as const;
+          if ("projectId" in news) {
+            // An id that resolves only at apply belongs to a new parent, and
+            // apply doesn't diff again, so the move is planned as a replace now.
+            if (!isResolved(news.projectId)) return { action: "replace" } as const;
+            // An adoption's `olds` are the new props; `output` is what it found.
+            // Checked before the other props resolve, for the same reason.
+            const unlinked = (key: "datasetId" | "parametersId") =>
+              (output?.[key] ?? olds[key]) !== undefined && news[key] === undefined;
+            if (unlinked("datasetId") || unlinked("parametersId")) {
+              // A replacement under the same name would find the old
+              // experiment again, so it goes first.
+              return {
+                action: "replace",
+                deleteFirst:
+                  news.name !== undefined && (!isResolved(news.name) || news.name === olds.name),
+              } as const;
+            }
           }
           if (!isResolved(news)) return undefined;
           if (news.projectId !== olds.projectId) return { action: "replace" } as const;
