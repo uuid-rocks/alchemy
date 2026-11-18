@@ -4,6 +4,7 @@ import * as Test from "@alchemy.run/test/Alchemy";
 import * as Core from "@alchemy.run/test/Core";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import { adopt, OwnedBySomeoneElse } from "alchemy/AdoptPolicy";
+import * as Provider from "alchemy/Provider";
 import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import * as Result from "effect/Result";
@@ -277,11 +278,32 @@ test.provider(
       const project = yield* stack.deploy(Braintrust.Project("Project", {}));
       const missing = "00000000-0000-4000-8000-000000000000";
 
-      // The tag the provider's read and delete treat as gone.
-      const read = yield* getFunction(missing).pipe(Effect.flip);
-      expect(read._tag).toBe("NotFoundOrForbidden");
-      const deleted = yield* braintrust.deleteFunction({ function_id: missing }).pipe(Effect.flip);
-      expect(deleted._tag).toBe("NotFoundOrForbidden");
+      const provider = yield* Provider.findProvider(Braintrust.Function);
+      const slug = "alchemy-test-bt-missing-fn";
+      const input = {
+        id: "Missing",
+        fqn: "Missing",
+        instanceId: "00000000000000000000000000000000",
+        olds: { projectId: project.projectId, slug, functionData: exactMatch },
+      };
+      const output: Braintrust.FunctionAttributes = {
+        functionId: missing,
+        projectId: project.projectId,
+        slug,
+        name: slug,
+        description: undefined,
+        functionData: exactMatch,
+        functionType: undefined,
+        functionSchema: undefined,
+        tags: [],
+        version: "0",
+        created: undefined,
+      };
+      const byId = yield* provider.read!({ ...input, output });
+      expect(byId).toBeUndefined();
+      const bySlug = yield* provider.read!({ ...input, output: undefined });
+      expect(bySlug).toBeUndefined();
+      yield* provider.delete({ ...input, output, session: undefined as never, bindings: [] });
 
       const lookup = Braintrust.Function.lookup({
         projectId: project.projectId,
