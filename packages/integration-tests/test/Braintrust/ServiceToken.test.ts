@@ -5,7 +5,6 @@ import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 
@@ -28,17 +27,16 @@ const expectTokenGone = (serviceTokenId: string) =>
 
 /**
  * Whether Braintrust accepts the key. A service account with no grants sees
- * no objects, so success of an authenticated list is the signal.
+ * no objects, so success of an authenticated list is the signal. Only a 401
+ * counts as rejection; any other failure fails the test.
  */
 const accepts = (key: Redacted.Redacted<string>) =>
-  braintrust.listProjects
-    .items({ limit: 1 })
-    .pipe(
-      Stream.runHead,
-      Effect.provide(Braintrust.fromApiKey({ apiKey: key })),
-      Effect.result,
-      Effect.map(Result.isSuccess),
-    );
+  braintrust.listProjects.items({ limit: 1 }).pipe(
+    Stream.runHead,
+    Effect.provide(Braintrust.fromApiKey({ apiKey: key })),
+    Effect.as(true),
+    Effect.catchTag("Unauthorized", () => Effect.succeed(false)),
+  );
 
 // The deployer's own token expires, and Braintrust refuses tokens that
 // outlive it, so every test token sets an expiry.
