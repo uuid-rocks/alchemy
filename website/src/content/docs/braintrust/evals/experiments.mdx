@@ -84,10 +84,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
           task: { project_name: "support-bot", slug: "summarize-ticket" },
           scores: [{ global_function: "ExactMatch" }],
         });
-        return yield* HttpServerResponse.json({
-          experiment: summary.experiment_url,
-          scores: summary.scores,
-        });
+        return yield* HttpServerResponse.json(summary.scores);
       }).pipe(Effect.orDie),
     };
   }).pipe(Effect.provide(Braintrust.LaunchEvalHttp)),

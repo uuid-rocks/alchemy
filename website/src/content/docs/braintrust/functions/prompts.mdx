@@ -1,0 +1,148 @@
+---
+title: Prompts
+description: Declare versioned Braintrust prompts, use them as LLM-as-a-judge scorers, and call models through Braintrust's AI proxy from a Worker.
+---
+
+import Tree from "../../../../components/diagrams/Tree.astro";
+
+A **prompt** is a chat or completion template, with the model it runs on and that model's parameters. It lives in a project under a **slug**. Your app loads it by slug with the Braintrust SDK, or Braintrust runs it: as an eval's task, as a **scorer** that judges another answer, or as a tool for another prompt.
+
+Every change to a prompt adds a **version**. Braintrust calls the model with the organization's [AI secret](/braintrust/access/secrets) for that provider.
+
+<Tree
+  nodes={[
+    {
+      id: "org", label: "acme", type: "organization", icon: "brand:braintrust", colGap: 3,
+      areas: ["project openai"],
+      phoneAreas: ["project", "openai"],
+    },
+    {
+      id: "project", label: "support", type: "project", parent: "org", icon: "folder", colGap: 3.5,
+      areas: ["baseline summarize", "baseline politeness"],
+      phoneAreas: ["summarize politeness", "baseline baseline"],
+    },
+    { id: "baseline", label: "baseline", type: "experiment", parent: "project", icon: "flask-conical" },
+    { id: "summarize", label: "summarize-ticket", type: "prompt · task", parent: "project", tone: "accent", icon: "message-square" },
+    { id: "politeness", label: "politeness", type: "prompt · scorer", parent: "project", tone: "accent", icon: "message-square" },
+    { id: "openai", label: "OPENAI_API_KEY", type: "AI secret", parent: "org", icon: "key-round" },
+  ]}
+  links={[
+    { from: "baseline", to: "summarize", label: "runs" },
+    { from: "politeness", to: "baseline", label: "scores" },
+    { from: "summarize", to: "openai", label: "calls model" },
+    { from: "politeness", to: "openai", label: "calls model" },
+  ]}
+  caption="The experiment runs one prompt as its task and another as a scorer. Both call their model with the organization's OpenAI key."
+/>
+
+## Declare a prompt
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const summarize = yield* Braintrust.Prompt("Summarize", {
+  projectId: project.projectId,
+  slug: "summarize-ticket",
+  promptData: {
+    prompt: {
+      type: "chat",
+      messages: [
+        { role: "system", content: "Summarize the ticket in one sentence." },
+        { role: "user", content: "{{input}}" },
+      ],
+    },
+    options: { model: "gpt-4o-mini", params: { temperature: 0 } },
+  },
+});
+```
+
+`{{input}}` is filled in from each call's input. `promptData` is written as a whole, so a field you remove is gone from the next version.
+
+Alchemy writes a new version only when the prompt you declare differs from the one deployed, so redeploying an unchanged prompt keeps its version. `summarize.version` is the current one: pass it with the project and slug to the Braintrust SDK's `loadPrompt` to load exactly what you deployed.
+
+Changing the slug keeps the prompt and adds a version. Moving it to another project replaces it, and every version of the old one is deleted.
+
+## Judge answers with an LLM
+
+A prompt with `functionType: "scorer"` is an **LLM-as-a-judge** scorer. Its `parser` turns the model's answer into a score:
+
+```typescript title="alchemy.run.ts"
+const politeness = yield* Braintrust.Prompt("Politeness", {
+  projectId: project.projectId,
+  slug: "politeness",
+  functionType: "scorer",
+  promptData: {
+    prompt: {
+      type: "chat",
+      messages: [{ role: "user", content: "Is this reply polite? {{output}} Answer Yes or No." }],
+    },
+    options: { model: "gpt-4o-mini" },
+    parser: { type: "llm_classifier", use_cot: true, choice_scores: { Yes: 1, No: 0 } },
+  },
+});
+```
+
+`use_cot` lets the model reason before it picks a choice, and `choice_scores` maps each choice to a score. Scorers written as code are in [Functions and scorers](/braintrust/functions/functions).
+
+## Let a prompt call tools
+
+`tool_functions` lists the functions the model may call, and `mcp` lists [MCP servers](/braintrust/functions/mcp-servers) whose tools it may use. A tool is a function with `functionType: "tool"`; see [Functions and scorers](/braintrust/functions/functions#tools-for-prompts).
+
+## Call a model through the proxy
+
+Braintrust's **AI proxy** takes OpenAI's request format for any provider, picks the provider from `model`, and calls it with the organization's AI secret. A Worker can call models with that key without ever holding it.
+
+`ProxyChatCompletions` binds one AI secret. The host gets its own service token with `read` on that secret only, so the proxy uses this key and no other:
+
+```typescript title="src/evals.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Config from "effect/Config";
+import * as Effect from "effect/Effect";
+
+export const OpenAI = Effect.gen(function* () {
+  return yield* Braintrust.AiSecret("OpenAI", {
+    name: "OPENAI_API_KEY",
+    type: "openai",
+    secret: yield* Config.Redacted("OPENAI_API_KEY"),
+  });
+});
+```
+
+```typescript title="src/api.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Effect from "effect/Effect";
+import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { OpenAI } from "./evals.ts";
+
+export default class Api extends Cloudflare.Worker<Api>()(
+  "Api",
+  { main: import.meta.url },
+  Effect.gen(function* () {
+    const chat = yield* Braintrust.ProxyChatCompletions(yield* OpenAI);
+    return {
+      fetch: Effect.gen(function* () {
+        const question = yield* (yield* HttpServerRequest).text;
+        const completion = yield* chat({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: question }],
+        });
+        return yield* HttpServerResponse.json(completion);
+      }).pipe(Effect.orDie),
+    };
+  }).pipe(Effect.provide(Braintrust.ProxyChatCompletionsHttp)),
+) {}
+```
+
+`ProxyCompletions`, `ProxyEmbeddings` and `ProxyAuto` bind the same way, for completions, embeddings, and either one picked by model. `ProxyRequest` sends any other OpenAI API request, by its path. None of them stream: responses come back whole.
+
+To run the prompt itself from your app, rather than a model, bind it with `InvokeFunction`. See [Functions and scorers](/braintrust/functions/functions#run-a-function-from-your-app).
+
+## Use a prompt you didn't create
+
+```typescript title="alchemy.run.ts"
+const existing = Braintrust.Project.lookup({ name: "My Project" });
+const greeting = Braintrust.Prompt.lookup({ projectId: existing.projectId, slug: "greeting" });
+```
+
+Prompts carry no tags, so one that already exists under a fixed slug is refused unless you adopt it.

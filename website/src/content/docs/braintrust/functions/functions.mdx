@@ -1,0 +1,189 @@
+---
+title: Functions and scorers
+description: Declare Braintrust functions as inline TypeScript or Python, or wrap a built-in scorer, use them as scorers, tasks and tools, and invoke them from a Worker.
+---
+
+import Tree from "../../../../components/diagrams/Tree.astro";
+
+A **function** is code that runs in Braintrust. Like a prompt, it lives in a project under a slug, every change adds a version, and its `functionType` says what it's for: a **scorer** that grades an answer, a **task** an eval runs, or a **tool** a prompt can call.
+
+Alchemy declares two kinds: inline code, whose source is stored on the function, and Braintrust's built-in functions, like the `Factuality` scorer. Code bundled and uploaded with `braintrust push` isn't managed here; reference it with `lookup`.
+
+<Tree
+  nodes={[
+    {
+      id: "project", label: "support", type: "project", icon: "folder", colGap: 3.5,
+      areas: ["exact baseline", "factuality baseline", "agent lookup"],
+      phoneAreas: ["exact factuality", "baseline baseline", "agent lookup"],
+    },
+    { id: "exact", label: "exact-answer", type: "function · scorer", parent: "project", tone: "accent", icon: "square-function" },
+    { id: "factuality", label: "Factuality", type: "built-in · scorer", parent: "project", tone: "accent", icon: "square-function" },
+    { id: "baseline", label: "baseline", type: "experiment", parent: "project", icon: "flask-conical" },
+    { id: "agent", label: "agent", type: "prompt", parent: "project", icon: "message-square" },
+    { id: "lookup", label: "lookup-order", type: "function · tool", parent: "project", tone: "accent", icon: "square-function" },
+  ]}
+  links={[
+    { from: "exact", to: "baseline", label: "scores" },
+    { from: "factuality", to: "baseline", label: "scores" },
+    { from: "agent", to: "lookup", label: "calls" },
+  ]}
+  caption="Two scorers grade the baseline experiment's answers: your own code and a built-in. A third function is a tool the agent prompt calls."
+/>
+
+## Write a scorer in TypeScript
+
+A scorer gets the `input`, the `output` and the `expected` answer, and returns a score from 0 to 1:
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const exact = yield* Braintrust.Function("ExactAnswer", {
+  projectId: project.projectId,
+  slug: "exact-answer",
+  functionType: "scorer",
+  functionData: {
+    type: "code",
+    data: {
+      type: "inline",
+      runtime_context: { runtime: "node", version: "20" },
+      code: "function handler({ output, expected }) { return output === expected ? 1 : 0; }",
+    },
+  },
+});
+```
+
+Alchemy writes a new version only when the function differs from the one deployed. Changing the slug or the project replaces the function, and every version of the old one is deleted.
+
+## A task in Python
+
+A task turns an input into an output. `runtime_context` picks the language:
+
+```typescript title="alchemy.run.ts"
+const classify = yield* Braintrust.Function("Classify", {
+  projectId: project.projectId,
+  functionType: "task",
+  description: "Routes a ticket to a queue",
+  functionData: {
+    type: "code",
+    data: {
+      type: "inline",
+      runtime_context: { runtime: "python", version: "3.12" },
+      code: "def handler(input):\n    return 'billing' if 'invoice' in input else 'general'",
+    },
+  },
+});
+```
+
+Values the code needs, like an API key, are [environment variables](/braintrust/access/secrets#environment-variables-for-functions) on the function, its project or the organization.
+
+## Use a built-in scorer
+
+Braintrust ships scorers like `Factuality` and `ExactMatch`. Give one a slug in your project:
+
+```typescript title="alchemy.run.ts"
+const factuality = yield* Braintrust.Function("Factuality", {
+  projectId: project.projectId,
+  functionType: "scorer",
+  functionData: { type: "global", name: "Factuality" },
+});
+```
+
+## Tools for prompts
+
+A tool needs a `parameters` schema, so the model knows how to call it. List it in a prompt's `tool_functions`:
+
+```typescript title="alchemy.run.ts"
+const lookupOrder = yield* Braintrust.Function("LookupOrder", {
+  projectId: project.projectId,
+  slug: "lookup-order",
+  functionType: "tool",
+  functionSchema: {
+    parameters: {
+      type: "object",
+      properties: { orderId: { type: "string" } },
+      required: ["orderId"],
+    },
+  },
+  functionData: {
+    type: "code",
+    data: {
+      type: "inline",
+      runtime_context: { runtime: "node", version: "20" },
+      code: "async function handler({ orderId }) { return { orderId, status: 'shipped' }; }",
+    },
+  },
+});
+const agent = yield* Braintrust.Prompt("Agent", {
+  projectId: project.projectId,
+  slug: "agent",
+  promptData: {
+    prompt: {
+      type: "chat",
+      messages: [{ role: "user", content: "Where is order {{orderId}}?" }],
+    },
+    options: { model: "gpt-4o-mini" },
+    tool_functions: [{ type: "function", id: lookupOrder.functionId }],
+  },
+});
+```
+
+## Run a function from your app
+
+`InvokeFunction` binds one function or prompt to a Worker, and runs it with an input. The host gets its own service token, with `read` on that function only. Pass `version` to run an earlier version.
+
+```typescript title="src/evals.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Effect from "effect/Effect";
+
+export const Support = Braintrust.Project("Support", {});
+
+export const Classify = Effect.gen(function* () {
+  const project = yield* Support;
+  return yield* Braintrust.Function("Classify", {
+    projectId: project.projectId,
+    functionType: "task",
+    functionData: {
+      type: "code",
+      data: {
+        type: "inline",
+        runtime_context: { runtime: "node", version: "20" },
+        code: "function handler(input) { return input.includes('invoice') ? 'billing' : 'general'; }",
+      },
+    },
+  });
+});
+```
+
+```typescript title="src/api.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Effect from "effect/Effect";
+import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { Classify } from "./evals.ts";
+
+export default class Api extends Cloudflare.Worker<Api>()(
+  "Api",
+  { main: import.meta.url },
+  Effect.gen(function* () {
+    const classify = yield* Braintrust.InvokeFunction(yield* Classify);
+    return {
+      fetch: Effect.gen(function* () {
+        const ticket = yield* (yield* HttpServerRequest).text;
+        const queue = yield* classify({ input: ticket });
+        return yield* HttpServerResponse.json({ queue });
+      }).pipe(Effect.orDie),
+    };
+  }).pipe(Effect.provide(Braintrust.InvokeFunctionHttp)),
+) {}
+```
+
+A prompt, or an LLM scorer, calls its model through the AI proxy as the Worker's service account, so bind its AI secret too, with `Braintrust.ProxyChatCompletions(openai)`. See [Prompts](/braintrust/functions/prompts#call-a-model-through-the-proxy).
+
+## Use a function you didn't create
+
+Functions pushed with `braintrust push`, or built in the Braintrust UI, are found by slug:
+
+```typescript title="alchemy.run.ts"
+const existing = Braintrust.Project.lookup({ name: "My Project" });
+const scorer = Braintrust.Function.lookup({ projectId: existing.projectId, slug: "exact-answer" });
+```

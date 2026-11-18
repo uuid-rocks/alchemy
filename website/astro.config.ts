@@ -1991,6 +1991,15 @@ export default defineConfig({
                 { label: "Experiments", link: "/braintrust/evals/experiments" },
               ],
             },
+            {
+              label: "Prompts & functions",
+              items: [
+                { label: "Prompts", link: "/braintrust/functions/prompts" },
+                { label: "Functions and scorers", link: "/braintrust/functions/functions" },
+                { label: "Environments", link: "/braintrust/functions/environments" },
+                { label: "MCP servers", link: "/braintrust/functions/mcp-servers" },
+              ],
+            },
             providerResourcesEntry("Braintrust"),
           ],
         },
