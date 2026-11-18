@@ -25,7 +25,7 @@ jobs:
   live:
     name: Braintrust live tests
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    # Only the test step gets the key, so dependency install scripts never see it.
+    # Only the test step gets the keys, so dependency install scripts never see them.
     env:
       HAS_BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY != '' }}
     steps:
@@ -54,4 +54,7 @@ jobs:
         if: env.HAS_BRAINTRUST_API_KEY == 'true'
         env:
           BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          # ExternalHost/CloudflareWorker.test.ts deploys a Worker; it skips without these.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TEST_CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TEST_CLOUDFLARE_ACCOUNT_ID }}
         run: timeout 900 pnpm test:integration test/Braintrust --retry 0
