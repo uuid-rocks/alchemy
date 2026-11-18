@@ -93,19 +93,18 @@ Braintrust's **AI proxy** takes OpenAI's request format for any provider, picks 
 
 `ProxyChatCompletions` binds one AI secret. The host gets its own service token with `read` on that secret only, so the proxy uses this key and no other:
 
-```typescript title="src/evals.ts"
+```typescript title="src/openai.ts"
 import * as Braintrust from "@alchemy.run/braintrust";
 import * as Config from "effect/Config";
-import * as Effect from "effect/Effect";
 
-export const OpenAI = Effect.gen(function* () {
-  return yield* Braintrust.AiSecret("OpenAI", {
-    name: "OPENAI_API_KEY",
-    type: "openai",
-    secret: yield* Config.Redacted("OPENAI_API_KEY"),
-  });
+export const OpenAI = Braintrust.AiSecret("OpenAI", {
+  name: "OPENAI_API_KEY",
+  type: "openai",
+  secret: Config.Redacted("OPENAI_API_KEY"),
 });
 ```
+
+Pass the `Config` itself, without `yield*`. The deploy reads it when it stores the secret. A `Config` read with `yield*` inside the Worker's setup is bound into the Worker as a variable, which would hand it the key.
 
 ```typescript title="src/api.ts"
 import * as Braintrust from "@alchemy.run/braintrust";
@@ -113,16 +112,18 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { OpenAI } from "./evals.ts";
+import { OpenAI } from "./openai.ts";
 
 export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   { main: import.meta.url },
   Effect.gen(function* () {
-    const chat = yield* Braintrust.ProxyChatCompletions(yield* OpenAI);
+    const openai = yield* OpenAI;
+    const chat = yield* Braintrust.ProxyChatCompletions(openai);
     return {
       fetch: Effect.gen(function* () {
-        const question = yield* (yield* HttpServerRequest).text;
+        const request = yield* HttpServerRequest;
+        const question = yield* request.text;
         const completion = yield* chat({
           model: "gpt-4o-mini",
           messages: [{ role: "user", content: question }],
