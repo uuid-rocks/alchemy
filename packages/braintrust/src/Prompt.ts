@@ -339,6 +339,9 @@ export const PromptProvider = () =>
       return {
         stables: ["promptId", "projectId"],
         diff: Effect.fn(function* ({ news, olds }) {
+          // An id that resolves only at apply belongs to a new parent, and apply
+          // doesn't diff again, so the move is planned as a replace now.
+          if (!isResolved(news.projectId)) return { action: "replace" } as const;
           if (!isResolved(news)) return undefined;
           if (news.projectId !== olds.projectId) return { action: "replace" } as const;
         }),

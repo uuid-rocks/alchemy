@@ -285,13 +285,15 @@ test.provider(
     Effect.gen(function* () {
       yield* stack.destroy();
 
-      // Both projects stay deployed across the replacement.
-      const program = (target: "A" | "B") =>
+      // Both projects stay deployed across the replacement. Project C is
+      // created by the deploy that moves the prompt into it.
+      const program = (target: "A" | "B" | "C") =>
         Effect.gen(function* () {
           const a = yield* Braintrust.Project("A", {});
           const b = yield* Braintrust.Project("B", {});
+          const c = target === "C" ? yield* Braintrust.Project("C", {}) : undefined;
           return yield* Braintrust.Prompt("Moving", {
-            projectId: target === "A" ? a.projectId : b.projectId,
+            projectId: target === "A" ? a.projectId : target === "B" ? b.projectId : c!.projectId,
             promptData: chat("moving"),
           });
         });
@@ -305,8 +307,15 @@ test.provider(
       });
       yield* expectPromptGone(first.promptId);
 
-      yield* stack.destroy();
+      // C's id is unknown at plan time, and apply doesn't diff again, so the
+      // plan must already replace the prompt.
+      expect((yield* stack.plan(program("C"))).resources.Moving.action).toBe("replace");
+      const created = yield* stack.deploy(program("C"));
+      expect(created.promptId).not.toBe(moved.promptId);
       yield* expectPromptGone(moved.promptId);
+
+      yield* stack.destroy();
+      yield* expectPromptGone(created.promptId);
     }),
   { tags, timeout: 120_000 },
 );
