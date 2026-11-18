@@ -1,9 +1,7 @@
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
-import { Credentials } from "@distilled.cloud/braintrust/Credentials";
 import { deepEqual, isResolved } from "alchemy/Diff";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
@@ -22,7 +20,7 @@ export interface ServiceTokenProps {
    * Seconds from creation until the token expires. Braintrust refuses a
    * token that would outlive the token creating it, so when omitted the
    * token never expires if the deployer's token doesn't, and otherwise
-   * expires with it.
+   * expires a minute before it.
    */
   expiresInSeconds?: number;
 }
@@ -111,21 +109,15 @@ const toAttributes = (
 });
 
 /**
- * Seconds until the deployer's own service token expires, less a minute;
- * `undefined` when it never expires or isn't in the list. The deployer's
- * token is the one whose preview ends in its key's last four characters.
+ * The longest expiry Braintrust accepts from this caller, less a minute
+ * because it counts down before the retry lands. Braintrust states it only
+ * in the refusal's text ("Set expires_in_seconds to at most N."), and a
+ * distilled error carries no value parsed out of its message.
  */
-const secondsLeftOnDeployerToken = Effect.gen(function* () {
-  const key = Redacted.value((yield* yield* Credentials).apiKey);
-  if (!key.startsWith("bt-st-")) return undefined;
-  const tokens = yield* Stream.runCollect(braintrust.listServiceTokens.items({}));
-  const expiries = Array.from(tokens)
-    .filter((token) => token.preview_name.slice(-4) === key.slice(-4))
-    .flatMap((token) => (token.expires_at ? [Date.parse(token.expires_at)] : []));
-  if (expiries.length === 0) return undefined;
-  const now = yield* Clock.currentTimeMillis;
-  return Math.max(60, Math.floor((Math.min(...expiries) - now) / 1000) - 60);
-});
+const callerExpiryLimit = (error: braintrust.ServiceTokenOutlivesCaller) => {
+  const seconds = /expires_in_seconds to at most (\d+)/.exec(error.message)?.[1];
+  return seconds === undefined ? undefined : Math.max(1, Number(seconds) - 60);
+};
 
 const getById = (serviceTokenId: string) =>
   braintrust
@@ -159,11 +151,20 @@ export const ServiceTokenProvider = () =>
           // Ensure — a missing token (revoked outside Alchemy) gets a new key.
           const name = yield* braintrustName(id, news.name);
           yield* session.note(`Creating service token ${name}...`);
-          const created = yield* braintrust.createServiceToken({
-            name,
-            service_account_id: news.serviceAccountId,
-            expires_in_seconds: news.expiresInSeconds ?? (yield* secondsLeftOnDeployerToken),
-          });
+          const create = (expiresInSeconds: number | undefined) =>
+            braintrust.createServiceToken({
+              name,
+              service_account_id: news.serviceAccountId,
+              expires_in_seconds: expiresInSeconds,
+            });
+          // With no expiry asked for, an expiring deployer gets a token that
+          // expires with its own. An explicit expiry is never shortened.
+          const created = yield* create(news.expiresInSeconds).pipe(
+            Effect.catchTag("ServiceTokenOutlivesCaller", (error) => {
+              const limit = news.expiresInSeconds === undefined && callerExpiryLimit(error);
+              return limit ? create(limit) : Effect.fail(error);
+            }),
+          );
           const key = Redacted.isRedacted(created.key) ? created.key : Redacted.make(created.key);
           return toAttributes(created, key);
         }),
