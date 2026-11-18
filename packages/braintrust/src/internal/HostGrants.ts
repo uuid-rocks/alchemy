@@ -14,6 +14,8 @@ export interface HostGrantsProps {
 
 export interface HostGrantsAttributes {
   serviceAccountId: string;
+  /** The account's direct-permission ACLs, as sorted grant keys. */
+  grants: string[];
 }
 
 /** One permission a binding needs on one object. */
@@ -34,11 +36,12 @@ export interface HostGrantsBinding {
  *
  * Bindings create the account for the host and own it, so the account's
  * direct-permission ACLs are this resource's state: every reconcile lists
- * them, creates what a binding asks for and revokes the rest. Nothing is
- * recorded, so a deploy that fails between two ACLs converges on the next
- * one. An ACL someone else puts on the account is revoked by the next deploy
- * that changes the host's bindings, not before (the host's account is not
- * for `Braintrust.Acl`). The account is its own resource, so a failed grant
+ * them, creates what a binding asks for and revokes the rest, and `read`
+ * reports the ones held. A deploy that fails between two ACLs converges on
+ * the next one. A deploy whose bindings are unchanged plans nothing, so an
+ * ACL deleted or added outside Alchemy shows up in `alchemy drift`, and its
+ * repair restores the bindings' set (the host's account is not for
+ * `Braintrust.Acl`). The account is its own resource, so a failed grant
  * never loses it.
  */
 export type HostGrants = Resource<
@@ -133,7 +136,9 @@ export const HostGrantsProvider = () =>
         }),
         read: Effect.fn(function* ({ olds, output }) {
           const serviceAccountId = output?.serviceAccountId ?? olds?.serviceAccountId;
-          return serviceAccountId ? { serviceAccountId } : undefined;
+          if (!serviceAccountId) return undefined;
+          const observed = yield* held(serviceAccountId);
+          return { serviceAccountId, grants: [...observed.keys()].sort() };
         }),
         reconcile: Effect.fn(function* ({ news, bindings }) {
           const { serviceAccountId } = news;
@@ -156,7 +161,7 @@ export const HostGrantsProvider = () =>
             serviceAccountId,
             [...observed].filter(([key]) => !desired.has(key)).map(([, aclId]) => aclId),
           );
-          return { serviceAccountId };
+          return { serviceAccountId, grants: [...desired.keys()].sort() };
         }),
         delete: Effect.fn(function* ({ output }) {
           const observed = yield* held(output.serviceAccountId);

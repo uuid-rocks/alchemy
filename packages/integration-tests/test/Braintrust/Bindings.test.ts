@@ -3,6 +3,7 @@ import { describe, expect } from "@alchemy.run/test";
 import * as Test from "@alchemy.run/test/Alchemy";
 import * as Core from "@alchemy.run/test/Core";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
+import * as Drift from "alchemy/Drift";
 import * as Namespace from "alchemy/Namespace";
 import * as Output from "alchemy/Output";
 import { type BaseRuntimeContext, RuntimeContext } from "alchemy/RuntimeContext";
@@ -1140,7 +1141,7 @@ let invoked: Braintrust.Function;
 
 describe("Host lifecycle", { tags }, () => {
   test.provider(
-    "an unchanged redeploy keeps a host's account, token and grants, a changed binding revokes what it no longer needs, and removing the host removes them",
+    "an unchanged redeploy keeps a host's account, token and grants, drift repair restores a deleted grant, a changed binding revokes what it no longer needs, and removing the host removes them",
     (stack) =>
       Effect.gen(function* () {
         yield* stack.destroy();
@@ -1197,6 +1198,36 @@ describe("Host lifecycle", { tags }, () => {
         });
         const deployed = yield* owned;
         expect([deployed.acls.length, deployed.tokens.length]).toEqual([2, 1]);
+
+        // A grant deleted outside Alchemy is drift, and repairing it restores the grant.
+        const detect = Drift.detect(stack).pipe(Effect.provide(stack.state));
+        const grantsFqn = (resources: Record<string, unknown>) =>
+          Object.keys(resources).find((fqn) => fqn.endsWith("BraintrustGrants"))!;
+        const clean = yield* detect;
+        const fqn = grantsFqn(clean.resources);
+        expect(clean.resources[fqn]?.action).toBe("unchanged");
+        const update = deployed.acls.find((acl) => acl.permission === "update");
+        yield* braintrust.deleteAcl({ acl_id: update!.id });
+        const drifted = yield* detect.pipe(
+          Effect.repeat({
+            until: (result) => result.resources[fqn]?.action === "drifted",
+            schedule: Schedule.spaced("1 second"),
+            times: 10,
+          }),
+        );
+        expect(drifted.resources[fqn]?.action).toBe("drifted");
+        const repaired = yield* Drift.repair(stack, { only: [fqn] }).pipe(
+          Effect.provide(stack.state),
+        );
+        expect(repaired.resources[fqn]?.action).toBe("repaired");
+        const restored = yield* grantsOf(second.env).pipe(
+          Effect.repeat({
+            until: ({ grants }) => grants.length === before.grants.length,
+            schedule: Schedule.spaced("1 second"),
+            times: 10,
+          }),
+        );
+        expect(restored).toEqual(before);
 
         // Dropping a binding revokes the grant only it needed, on the same account.
         const swapped = yield* stack.deploy(
