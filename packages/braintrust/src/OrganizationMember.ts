@@ -131,9 +131,10 @@ export const OrganizationMemberProvider = () =>
       return {
         stables: ["userId"],
         diff: Effect.fn(function* ({ news, olds }) {
-          // An email that resolves only at apply may differ, and apply doesn't
-          // diff again.
-          if (!isResolved(news)) return { action: "replace" } as const;
+          // An email that resolves only at apply is often the same person, and
+          // a replace would find them again and then remove them. Reconcile
+          // tells the cases apart once it resolves; the user id may change.
+          if (!isResolved(news)) return { action: "update", stables: [] } as const;
           if (news.email.toLowerCase() !== olds.email.toLowerCase()) {
             return { action: "replace" } as const;
           }
@@ -180,6 +181,15 @@ export const OrganizationMemberProvider = () =>
             if (!user) {
               return yield* new OrganizationMemberNotInvited({ email: news.email });
             }
+          }
+
+          // An email that resolved at apply to someone else moves the member,
+          // as a replace would: the person it named before leaves.
+          if (output && output.userId !== user.id) {
+            yield* session.note(`Removing ${output.email}...`);
+            yield* braintrust.updateOrganizationMembers({
+              remove_users: { ids: [output.userId] },
+            });
           }
 
           return toAttributes(user, news.email);
