@@ -102,7 +102,8 @@ export interface ProjectProps {
   /**
    * Ids of the project groups the project is in, e.g.
    * `projectGroup.projectGroupId`. Once set, the project is removed from
-   * any group not listed. Left unset, memberships are not managed.
+   * any group not listed, and from every group when this is removed. Never
+   * set, memberships are not managed.
    */
   projectGroupIds?: string[];
 }

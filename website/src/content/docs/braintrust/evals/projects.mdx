@@ -93,7 +93,7 @@ yield* Braintrust.Acl("ReadSupportProjects", {
 });
 ```
 
-Once a project lists `projectGroupIds`, it leaves any group it doesn't list. Leave the prop out and Alchemy doesn't touch its groups. See [Roles, groups and ACLs](/braintrust/access/access-control).
+Once a project lists `projectGroupIds`, it leaves any group it doesn't list, and removing the prop later takes it out of every group. Alchemy doesn't touch the groups of a project that never listed them. See [Roles, groups and ACLs](/braintrust/access/access-control).
 
 ## Use a project you didn't create
 
