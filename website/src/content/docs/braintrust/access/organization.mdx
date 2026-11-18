@@ -61,7 +61,7 @@ yield* Braintrust.Acl("CiWritesSupport", {
 
 `token.key` is the `bt-st-…` key, `Redacted`, so it goes straight into a [GitHub Actions secret](/github/actions-config) without anyone copying it. Braintrust returns a key only when it's created, so changing any prop of the token creates a new key, and destroying the token cancels it. Rename the token to rotate its key.
 
-Without `expiresInSeconds`, the token expires when the token you deploy with does, or never if yours doesn't.
+Without `expiresInSeconds`, the token expires when the token you deploy with does, or never if yours doesn't. A deploy in the last tenth of a token's lifetime creates a new key.
 
 ## Tokens your runtimes get for you
 

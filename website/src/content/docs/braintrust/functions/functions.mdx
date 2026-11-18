@@ -51,7 +51,7 @@ const exact = yield* Braintrust.Function("ExactAnswer", {
 });
 ```
 
-Alchemy writes a new version only when the function differs from the one deployed. Changing the slug or the project replaces the function, and every version of the old one is deleted.
+Alchemy writes a new version only when the function differs from the one deployed. Changing the slug keeps the function and adds a version. Changing the project replaces the function, and every version of the old one is deleted.
 
 ## A task in Python
 
