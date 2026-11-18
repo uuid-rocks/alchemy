@@ -1973,7 +1973,16 @@ export default defineConfig({
           label: "Braintrust",
           items: [
             { label: "Overview", link: "/braintrust" },
+            { label: "What is Braintrust?", link: "/braintrust/what-is-braintrust" },
             { label: "Setup", link: "/braintrust/setup" },
+            {
+              label: "Accounts & access",
+              items: [
+                { label: "Organization and keys", link: "/braintrust/access/organization" },
+                { label: "Roles, groups and ACLs", link: "/braintrust/access/access-control" },
+                { label: "AI keys and secrets", link: "/braintrust/access/secrets" },
+              ],
+            },
             providerResourcesEntry("Braintrust"),
           ],
         },

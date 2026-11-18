@@ -5,7 +5,12 @@ description: Connect alchemy to your Braintrust organization with an API key or 
 
 import PackageManagers from "../../../components/PackageManagers.astro";
 
-Sign up at [braintrust.dev](https://www.braintrust.dev). Install `@alchemy.run/braintrust`:
+## Prerequisites
+
+- [Node.js](https://nodejs.org) 24.11.1+ or [Bun](https://bun.sh)
+- A Braintrust account: sign up at [braintrust.dev](https://www.braintrust.dev)
+
+## Install
 
 <PackageManagers add="@alchemy.run/braintrust" />
 
@@ -22,12 +27,16 @@ providers: Layer.mergeAll(Cloudflare.providers(), Braintrust.providers()),
 
 Resources are created in the organization the key belongs to.
 
-- **API key** (`sk-…`): create one under **Settings → API keys**. It acts as you.
-- **Service token** (`bt-st-…`): create a service account and a token for it in your organization's settings. It acts as the service account. `Braintrust.ServiceToken` needs a service token deployer: Braintrust refuses to create service tokens with a user API key.
+- **Service token** (`bt-st-…`): create a service account and a token for it in your organization's settings. It acts as the service account. Use one if your Stack creates service tokens, or uses bindings, which create a token for each Worker or Function: Braintrust refuses to create service tokens with a user API key.
+- **API key** (`sk-…`): create one under **Settings → API keys**. It acts as you, and is enough for a Stack of projects, datasets, prompts and access control.
 
 ## Store it in a profile
 
-Run `alchemy profile edit --add Braintrust` and paste the key. It is saved under `~/.alchemy/credentials/<profile>/`. Leave the API URL empty unless you run a self-hosted data plane.
+Add Braintrust to your profile and paste the key:
+
+<PackageManagers run="alchemy profile edit --add Braintrust" />
+
+It is saved under `~/.alchemy/credentials/<profile>/`. Leave the API URL empty unless you run a self-hosted data plane.
 
 ## CI
 
@@ -37,4 +46,5 @@ See [Profiles](/environments/profiles) for how credentials are stored and switch
 
 ## Next steps
 
-- [Braintrust overview](/braintrust): resources and what they're for.
+- [Organization and keys](/braintrust/access/organization): which key to deploy with, and one organization per environment.
+- [Projects](/braintrust/evals/projects): declare your first project.

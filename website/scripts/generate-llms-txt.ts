@@ -825,8 +825,12 @@ const SECTIONS: Section[] = [
     intro:
       "Braintrust evals as Stack resources: projects, datasets, experiments, prompts, functions, scores, automations, and roles, groups and ACLs.",
     pages: {
-      slugs: ["braintrust/index", "braintrust/setup"],
+      slugs: ["braintrust/index", "braintrust/what-is-braintrust", "braintrust/setup"],
     },
+  },
+  {
+    heading: "Braintrust — Accounts & access",
+    pages: { directory: "braintrust/access" },
   },
   {
     heading: "GitHub",

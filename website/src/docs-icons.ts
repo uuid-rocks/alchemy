@@ -126,6 +126,8 @@ const GROUP_ICONS: Record<string, string | undefined> = {
   Workflows: l("workflow"),
   Containers: l("container"),
   Observability: l("activity"),
+  Evals: l("flask-conical"),
+  "Prompts & functions": l("square-function"),
   Networking: l("globe"),
   Guides: l("map"),
   Resources: l("boxes"),

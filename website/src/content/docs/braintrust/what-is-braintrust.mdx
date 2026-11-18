@@ -1,0 +1,115 @@
+---
+title: What is Braintrust?
+description: The concepts behind Braintrust (organizations, projects, logs, datasets, experiments, scorers, prompts and functions, AI secrets) and how @alchemy.run/braintrust models each of them.
+---
+
+import Tree from "../../../components/diagrams/Tree.astro";
+
+Braintrust keeps everything about one AI feature in a **project**: the traces your app logs in production, the datasets you test it against, the experiments that record each test run, and the prompts and scorers those runs use. Your app sends traces in; Braintrust runs prompts and code over datasets, scores each answer, and lines the results up against the last run.
+
+Take one small app: a support bot that answers tickets. It logs every answer to a `support` project. A `tickets` dataset holds questions with the answers you expect. A `baseline` experiment runs the `summarize` prompt over those tickets, and an `exact-answer` scorer gives each answer a score, so the next experiment can be compared with this one.
+
+<Tree
+  nodes={[
+    { id: "app", label: "your app", type: "support bot", icon: "server" },
+    { id: "org", label: "acme", type: "organization", icon: "brand:braintrust" },
+    {
+      id: "project", label: "support", type: "project", parent: "org", icon: "folder", colGap: 4,
+      areas: ["logs summarize", "tickets baseline", "tickets exact"],
+      phoneAreas: ["summarize summarize", "tickets baseline", "exact exact", "logs logs"],
+    },
+    { id: "logs", label: "logs", type: "traces", parent: "project", icon: "scroll-text" },
+    { id: "summarize", label: "summarize", type: "prompt", parent: "project", icon: "message-square" },
+    { id: "tickets", label: "tickets", type: "dataset", parent: "project", icon: "database" },
+    { id: "baseline", label: "baseline", type: "experiment", parent: "project", tone: "accent", icon: "flask-conical" },
+    { id: "exact", label: "exact-answer", type: "scorer", parent: "project", icon: "square-function" },
+  ]}
+  areas={["app org"]}
+  phoneAreas={["org", "app"]}
+  colGap={3}
+  links={[
+    { from: "app", to: "logs", label: "logs" },
+    { from: "baseline", to: "summarize", label: "runs" },
+    { from: "baseline", to: "tickets", label: "reads" },
+    { from: "exact", to: "baseline", label: "scores" },
+  ]}
+  caption="One project holds one feature's logs, datasets, experiments, prompts and scorers. Your app logs traces into it; an experiment runs a prompt over a dataset, and a scorer scores each answer."
+/>
+
+## Organizations and keys
+
+An **organization** holds your projects, members, AI provider keys and bill. Every call to Braintrust carries an **API key**: a user's key (`sk-…`) acts as that person, and a **service token** (`bt-st-…`) acts as a **service account**, a member that isn't a person. The key decides the organization, so it decides where a deploy goes.
+
+Connect it once, in [Setup](/braintrust/setup). See [Organization and keys](/braintrust/access/organization).
+
+## Access control
+
+A **role** is a set of permissions, a **group** is a set of members, and an **ACL** grants a role or a single permission to a member or group on one object. Grants flow down: read on a project covers its logs, datasets and experiments.
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const reviewers = yield* Braintrust.Group("Reviewers", {});
+yield* Braintrust.Acl("ReviewersRead", {
+  objectType: "project",
+  objectId: project.projectId,
+  groupId: reviewers.groupId,
+  permission: "read",
+});
+```
+
+See [Roles, groups and ACLs](/braintrust/access/access-control).
+
+## Projects
+
+A **project** is the home of one AI feature or app. Deleting it deletes everything inside, so most Stacks declare one per feature and per stage.
+
+See [Projects](/braintrust/evals/projects).
+
+## Datasets
+
+A **dataset** is a versioned set of records, each an `input`, the `expected` output and `metadata`. Every write adds a version, and a **snapshot** pins one so an eval can keep running against it while the dataset changes.
+
+```typescript title="alchemy.run.ts"
+const tickets = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+```
+
+See [Datasets and snapshots](/braintrust/evals/datasets).
+
+## Experiments and scores
+
+An **experiment** is one run of an eval: a task (a prompt or your code) over a dataset, with each answer scored. A **score** is a number from 0 to 1. Braintrust lines up two experiments' rows by input, so you see which answers got better or worse.
+
+Evals usually create their experiments themselves. Declare one when it should outlive a run, like the baseline every other run compares with:
+
+```typescript title="alchemy.run.ts"
+const baseline = yield* Braintrust.Experiment("Baseline", {
+  projectId: project.projectId,
+  datasetId: tickets.datasetId,
+});
+```
+
+See [Experiments](/braintrust/evals/experiments).
+
+## Prompts, functions and scorers
+
+A **prompt** is a chat or completion template with its model and parameters. A **function** is code that runs in Braintrust. Either one can be a **scorer**, a **tool** a prompt may call, or a **task** an eval runs. Each has a slug your code loads or invokes it by, and every change adds a version. An **environment** like `production` names the version code should use.
+
+See [Prompts](/braintrust/functions/prompts) and [Functions and scorers](/braintrust/functions/functions).
+
+## AI secrets
+
+Prompts, LLM scorers and Braintrust's **AI proxy** call model providers with keys Braintrust stores for the organization, called **AI secrets**. Code running in Braintrust reads its own values from **environment variables**.
+
+See [AI keys and secrets](/braintrust/access/secrets).
+
+## Logs and review
+
+**Logs** are your app's production traces, each a tree of spans with inputs, outputs and metadata. Reviewers fill in **scores** and **tags** on them, **views** save a filter and layout, and **automations** alert you, export logs or delete old ones.
+
+See [Logs and ingest keys](/braintrust/observability/logs).
+
+## How @alchemy.run/braintrust models these concepts
+
+Your key picks the organization, and `Braintrust.providers()` deploys into it. Projects, datasets, experiments, prompts, functions, roles, groups, ACLs, AI secrets, scores, views and automations are resources in your Stack, next to the app that uses them. What your app does with them while it runs, like logging traces, invoking a function or running an eval, are bindings: each one gives its host a service token that can only reach the object it binds.
+
+Next, connect your organization in [Setup](/braintrust/setup).

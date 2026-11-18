@@ -1,58 +1,86 @@
 ---
 title: Braintrust
-description: Evals as resources — projects, datasets, experiments, prompts, scorers and access control declared next to the app they evaluate.
+description: Declare Braintrust projects, datasets, experiments, prompts, scorers and access control in the same TypeScript program as the app they evaluate.
 ---
 
 import HubMap from "../../../components/HubMap.astro";
 
-Braintrust is a platform for evaluating and observing AI applications. You log your app's traces to a project, run evals over datasets as experiments, and compare experiments to see whether a change made answers better or worse.
+Braintrust is an evals and observability platform for LLM apps that stores your production traces, runs prompts and code against datasets, and scores every run so you can compare it with the last.
 
-Prompts and scorers live in Braintrust as versioned objects your code loads by slug. Roles, groups and ACLs decide who can read or change each project.
+Prompts and scorers live in Braintrust as versioned objects your code loads and invokes by slug, and Braintrust calls your model providers with keys it holds for your organization.
+
+**New to Braintrust?** Start with [What is Braintrust?](/braintrust/what-is-braintrust).
 
 ## A quick example
 
 A Project holds one AI feature's logs, datasets and experiments:
 
-```typescript
-const project = yield* Braintrust.Project("Support", {
+```typescript title="src/evals.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+
+export const Support = Braintrust.Project("Support", {
   description: "Evals and logs for the support bot",
 });
 ```
 
-A Dataset holds the records your evals run against:
+A Worker logs each answer to the project, with a token that can only write that project's logs:
 
-```typescript
-const dataset = yield* Braintrust.Dataset("Tickets", {
-  projectId: project.projectId,
-});
+```typescript title="src/api.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Effect from "effect/Effect";
+import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { Support } from "./evals.ts";
+
+export default class Api extends Cloudflare.Worker<Api>()(
+  "Api",
+  { main: import.meta.url },
+  Effect.gen(function* () {
+    const log = yield* Braintrust.InsertProjectLogs(yield* Support);
+    return {
+      fetch: Effect.gen(function* () {
+        const question = yield* (yield* HttpServerRequest).text;
+        const answer = "Reset it from Settings → Password.";
+        yield* log({ events: [{ input: question, output: answer }] });
+        return yield* HttpServerResponse.json({ answer });
+      }).pipe(Effect.orDie),
+    };
+  }).pipe(Effect.provide(Braintrust.InsertProjectLogsHttp)),
+) {}
 ```
 
-An Experiment pinned to that dataset is the baseline other runs compare against:
+The Stack deploys both, with a Dataset of test cases next to the project:
 
-```typescript
-const baseline = yield* Braintrust.Experiment("Baseline", {
-  projectId: project.projectId,
-  datasetId: dataset.datasetId,
-});
-```
+```typescript title="alchemy.run.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import Api from "./src/api.ts";
+import { Support } from "./src/evals.ts";
 
-A Group with an Acl gives a team access to the project, and nothing else:
-
-```typescript
-const reviewers = yield* Braintrust.Group("Reviewers", {});
-yield* Braintrust.Acl("ReviewersRead", {
-  objectType: "project",
-  objectId: project.projectId,
-  groupId: reviewers.groupId,
-  permission: "read",
-});
+export default Alchemy.Stack(
+  "MyApp",
+  {
+    providers: Layer.mergeAll(Cloudflare.providers(), Braintrust.providers()),
+    state: Cloudflare.state(),
+  },
+  Effect.gen(function* () {
+    const project = yield* Support;
+    yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+    const api = yield* Api;
+    return { url: api.url.as<string>() };
+  }),
+);
 ```
 
 ## Where to start
 
-**Want to build?** Connect your organization in [Setup](/braintrust/setup).
+**Want to build?** Connect your organization in [Setup](/braintrust/setup), then declare your first project in [Projects](/braintrust/evals/projects).
 
-**Looking for something specific?** Every resource is in the generated API reference below.
+**Looking for something specific?** Every section of these docs is listed below, and every resource is in the generated [API reference](/providers).
 
 ## Out of scope
 
