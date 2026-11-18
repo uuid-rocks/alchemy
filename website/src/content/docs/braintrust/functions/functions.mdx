@@ -128,7 +128,7 @@ const agent = yield* Braintrust.Prompt("Agent", {
 
 ## Run a function from your app
 
-`InvokeFunction` binds one function or prompt to a Worker, and runs it with an input. The host gets its own service token, with `read` on that function only. Pass `version` to run an earlier version.
+`InvokeFunction` binds one function or prompt to a Worker, and runs it with an input. The host gets its own service token, with `read` on that function only. Pass `version` to run an earlier version. Streaming isn't supported: the result comes back whole.
 
 ```typescript title="src/evals.ts"
 import * as Braintrust from "@alchemy.run/braintrust";

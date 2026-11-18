@@ -2000,6 +2000,15 @@ export default defineConfig({
                 { label: "MCP servers", link: "/braintrust/functions/mcp-servers" },
               ],
             },
+            {
+              label: "Observability",
+              items: [
+                { label: "Logs and ingest keys", link: "/braintrust/observability/logs" },
+                { label: "Human review", link: "/braintrust/observability/review" },
+                { label: "Views and columns", link: "/braintrust/observability/views" },
+                { label: "Automations", link: "/braintrust/observability/automations" },
+              ],
+            },
             providerResourcesEntry("Braintrust"),
           ],
         },

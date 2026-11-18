@@ -52,7 +52,7 @@ A snapshot can't move: a new `xactId` deletes the old snapshot and creates a new
 
 ## Read and write records from your app
 
-`ReadWriteDataset` gives a Worker or Function a client for one dataset: `fetch`, `insert`, `feedback`, `summarize`, `restore` and `previewRestore`. The host gets its own service token, with `read` and `update` on this dataset only. `ReadDataset` and `WriteDataset` grant one side.
+`ReadWriteDataset` gives a Worker or Function a client for one dataset: `fetch`, `summarize`, `previewRestore`, `insert` and `feedback`. The host gets its own service token, with `read` and `update` on this dataset only. `ReadDataset` and `WriteDataset` grant one side.
 
 Declare the project and dataset where the Worker can import them:
 
@@ -98,7 +98,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
 ) {}
 ```
 
-`tickets.restore({ version })` puts the dataset back as it was at an `_xact_id`, and `previewRestore` shows what that would change first.
+To put the dataset back as it was at an `_xact_id`, bind `RestoreDataset` and call it with `{ version }`. A restore deletes the records added since that version, so its token also gets `delete` on the dataset, which lets it delete the whole dataset too. Bind it only where you need it; `previewRestore` shows what a restore would change without it.
 
 ## Use a dataset you didn't create
 

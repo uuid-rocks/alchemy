@@ -841,6 +841,10 @@ const SECTIONS: Section[] = [
     pages: { directory: "braintrust/functions" },
   },
   {
+    heading: "Braintrust — Observability",
+    pages: { directory: "braintrust/observability" },
+  },
+  {
     heading: "GitHub",
     intro:
       "Repos, secrets, variables, and repository event sources as Stack resources; the CI/CD guides live under Guides and each cloud's tutorial part 5.",
