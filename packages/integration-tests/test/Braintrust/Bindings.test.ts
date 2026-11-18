@@ -1077,3 +1077,36 @@ describe("InvokeFunction", { tags }, () => {
 });
 
 let invoked: Braintrust.Function;
+
+describe("Looked-up objects", { tags }, () => {
+  test.provider(
+    "grants a host each looked-up dataset it binds",
+    (stack) =>
+      Effect.gen(function* () {
+        yield* stack.destroy();
+        const project = yield* stack.deploy(Braintrust.Project("LookupProject", {}));
+        // Datasets this stack doesn't manage, so `lookup` may find them.
+        const datasets = yield* Effect.forEach(["lookup-a", "lookup-b"], (name) =>
+          braintrust.createDataset({ project_id: project.projectId, name }),
+        );
+        const env = yield* stack.deploy(
+          Effect.gen(function* () {
+            const project = yield* Braintrust.Project("LookupProject", {});
+            const lookup = (name: string) =>
+              Braintrust.Dataset.lookup({ projectId: project.projectId, name });
+            return yield* host(
+              "LookupHost",
+              Effect.gen(function* () {
+                yield* Braintrust.ReadDataset(lookup("lookup-a"));
+                yield* Braintrust.ReadDataset(lookup("lookup-b"));
+              }).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),
+            );
+          }),
+        );
+        const { grants } = yield* grantsOf(env);
+        expect(grants).toEqual(datasets.map((dataset) => `dataset:${dataset.id}:read`).sort());
+        yield* stack.destroy();
+      }),
+    { tags, timeout: 300_000 },
+  );
+});

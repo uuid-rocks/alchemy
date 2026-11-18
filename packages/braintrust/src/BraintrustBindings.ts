@@ -63,6 +63,26 @@ const pascal = (value: string) =>
   value.replace(/(^|_)([a-z])/g, (_, __, letter: string) => letter.toUpperCase());
 
 /**
+ * The part of an ACL's logical id that names the bound object. A declared
+ * resource has an FQN, so same-named targets in different namespaces get
+ * separate ACLs. `/` would nest the ACL's own FQN, and `__` is how state
+ * files encode `/`. A `lookup(...)` or `ref(...)` has no FQN (reading one
+ * gives an Output), so it is named by its lookup props, with each Output
+ * written as the expression that produces it, or by its ref.
+ */
+const targetName = (target: object): string => {
+  const fqn = (target as { FQN?: unknown }).FQN;
+  if (typeof fqn === "string") return fqn.replaceAll("/", "-");
+  const expr = (target as { [Output.ExprSymbol]?: unknown })[Output.ExprSymbol] ?? target;
+  const name = Output.isLookupExpr(expr)
+    ? `lookup-${Object.values(expr.expr as object)
+        .map((value) => (Output.isExpr(value) ? value.toString() : String(value)))
+        .join("-")}`
+    : String(expr);
+  return name.replace(/[^A-Za-z0-9]+/g, "-");
+};
+
+/**
  * Grants the host's service account `grants` on `objectId`, the id of
  * `target`, and returns an `authorize` that runs calls with the host's
  * token. Grants of the same permission on the same object, from any binding,
@@ -98,10 +118,7 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
       host.LogicalId,
       Effect.gen(function* () {
         const account = yield* makeAccount("BraintrustServiceAccount", {});
-        // The target's FQN, not its logical id, so same-named targets in
-        // different namespaces get separate ACLs. `/` would nest the ACL's
-        // own FQN, and `__` is how state files encode `/`.
-        const targetId = target.FQN.replaceAll("/", "-");
+        const targetId = targetName(target);
         for (const grant of grants) {
           const restrict = grant.restrictObjectType;
           yield* makeAcl(
