@@ -1155,8 +1155,9 @@ describe("Looked-up objects", { tags }, () => {
       Effect.gen(function* () {
         yield* stack.destroy();
         const project = yield* stack.deploy(Braintrust.Project("LookupProject", {}));
-        // Datasets this stack doesn't manage, so `lookup` may find them.
-        const datasets = yield* Effect.forEach(["lookup-a", "lookup-b"], (name) =>
+        // Datasets this stack doesn't manage, so `lookup` may find them. The
+        // names differ only in punctuation, which must not merge their ACLs.
+        const datasets = yield* Effect.forEach(["lookup-a", "lookup_a"], (name) =>
           braintrust.createDataset({ project_id: project.projectId, name }),
         );
         const env = yield* stack.deploy(
@@ -1168,7 +1169,7 @@ describe("Looked-up objects", { tags }, () => {
               "LookupHost",
               Effect.gen(function* () {
                 yield* Braintrust.ReadDataset(lookup("lookup-a"));
-                yield* Braintrust.ReadDataset(lookup("lookup-b"));
+                yield* Braintrust.ReadDataset(lookup("lookup_a"));
               }).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),
             );
           }),
