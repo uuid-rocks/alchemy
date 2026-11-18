@@ -40,7 +40,7 @@ export interface McpServerAttributes {
   projectId: string;
   /** Server name. */
   name: string;
-  /** The server's endpoint, `Redacted` when the props passed it `Redacted`. */
+  /** The server's endpoint, `Redacted` when the props passed it `Redacted` and from a lookup. */
   url: string | Redacted.Redacted<string>;
   /** Textual description of the server. */
   description: string | undefined;
@@ -180,7 +180,8 @@ export const McpServerProvider = () =>
         }),
         lookup: Effect.fn(function* ({ projectId, name }) {
           const server = yield* findByName(projectId, name);
-          return server ? toAttributes(server, false) : undefined;
+          // Without props, the URL may carry a credential.
+          return server ? toAttributes(server, true) : undefined;
         }),
         read: Effect.fn(function* ({ id, olds, output, previous }) {
           const redact = Redacted.isRedacted(olds.url);

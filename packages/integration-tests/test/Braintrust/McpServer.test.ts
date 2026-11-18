@@ -48,9 +48,10 @@ test.provider(
       expect(created.project_id).toBe(server.projectId);
       expect(created.url).toBe("https://mcp.example.com/mcp");
       expect(created.description).toBe("first");
+      // A lookup can't tell whether the URL holds a credential, so it redacts it.
       yield* expectFound(
         Braintrust.McpServer.lookup({ projectId: server.projectId, name: server.name }),
-        server,
+        { ...server, url: Redacted.make(props.url) },
       );
 
       const plan = yield* stack.plan(inProject(props));
