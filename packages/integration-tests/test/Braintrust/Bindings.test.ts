@@ -1078,6 +1078,69 @@ describe("InvokeFunction", { tags }, () => {
 
 let invoked: Braintrust.Function;
 
+describe("Host lifecycle", { tags }, () => {
+  test.provider(
+    "an unchanged redeploy keeps a host's account, token and grants, and removing the host removes them",
+    (stack) =>
+      Effect.gen(function* () {
+        yield* stack.destroy();
+        const project = Braintrust.Project("Redeployed", {});
+        const program = Effect.gen(function* () {
+          const bound = yield* project;
+          const env = yield* host(
+            "RedeployHost",
+            Braintrust.InsertProjectLogs(bound).pipe(
+              Effect.provide(Braintrust.InsertProjectLogsHttp),
+            ),
+          );
+          return { projectId: bound.projectId, env };
+        });
+
+        const first = yield* stack.deploy(program);
+        const before = yield* grantsOf(first.env);
+        expect(before.grants).toEqual([`project_log:${first.projectId}:update`]);
+
+        const second = yield* stack.deploy(program);
+        expect(yield* grantsOf(second.env)).toEqual(before);
+        expect(Redacted.value(keyOf(second.env)) === Redacted.value(keyOf(first.env))).toBe(true);
+
+        const owned = Effect.all({
+          acls: Stream.runCollect(
+            braintrust.listAcls.items({ object_type: "project_log", object_id: first.projectId }),
+          ).pipe(
+            Effect.map((acls) => acls.filter((acl) => acl.user_id === before.serviceAccountId)),
+          ),
+          // GET /v1/service_token ignores `starting_after`, so paging repeats tokens.
+          tokens: Stream.runCollect(braintrust.listServiceTokens.items({})).pipe(
+            Effect.map((tokens) => [
+              ...new Set(
+                tokens
+                  .filter((token) => token.service_account_id === before.serviceAccountId)
+                  .map((token) => token.id),
+              ),
+            ]),
+          ),
+        });
+        const deployed = yield* owned;
+        expect([deployed.acls.length, deployed.tokens.length]).toEqual([1, 1]);
+
+        // The project stays, so an empty ACL list on it means the grant was deleted.
+        yield* stack.deploy(project);
+        const leftover = yield* owned.pipe(
+          Effect.repeat({
+            until: ({ acls, tokens }) => acls.length === 0 && tokens.length === 0,
+            schedule: Schedule.spaced("1 second"),
+            times: 10,
+          }),
+        );
+        expect(leftover.acls.length).toBe(0);
+        expect(leftover.tokens.length).toBe(0);
+        yield* stack.destroy();
+      }),
+    { tags, timeout: 300_000 },
+  );
+});
+
 describe("Looked-up objects", { tags }, () => {
   test.provider(
     "grants a host each looked-up dataset it binds",
