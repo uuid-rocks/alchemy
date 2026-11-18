@@ -41,13 +41,16 @@ import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
-import * as Scheduler from "effect/Scheduler";
 import { HostGrants } from "./internal/HostGrants.ts";
 import { ServiceAccount } from "./ServiceAccount.ts";
 import { ServiceToken } from "./ServiceToken.ts";
 
 /** A plain value as an Output with no requirements (`asOutput` leaves them `any`). */
 const output = <A>(value: A) => Output.asOutput(value) as Output.Output<A, never>;
+
+/** Binding positions taken so far on each host's grants, per stack build. */
+const grantCounters = new WeakMap<object, Map<string, number>>();
+const noStack = {};
 
 /** One permission a binding needs on the object it binds. */
 export interface Grant {
@@ -95,6 +98,7 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
     const makeToken = yield* ServiceToken;
     const makeGrants = yield* HostGrants;
     const stack = yield* Effect.serviceOption(Stack);
+    const stackKey = Option.isSome(stack) ? stack.value : noStack;
     const token = yield* Namespace.push(
       host.LogicalId,
       Effect.gen(function* () {
@@ -105,15 +109,19 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
         // Nothing known at plan time tells two bound objects apart (a
         // lookup's props can be closures over different values), so each
         // binding gets its own sid by position and the grants are deduped
-        // once their ids resolve. The position is read and taken in
-        // one step: a scheduler yield in between lets a concurrent binding
-        // take the same sid, and core keeps only one row per sid.
-        yield* Effect.suspend(() =>
-          hostGrants.bind(
-            `Grant${Option.isSome(stack) ? (stack.value.bindings[hostGrants.FQN]?.length ?? 0) : 0}`,
-            { grants: grants.map((grant) => ({ ...grant, objectId })) },
-          ),
-        ).pipe(Effect.provideService(Scheduler.PreventSchedulerYield, true));
+        // once their ids resolve. The position is read and taken in one
+        // step: concurrent bindings that read the same position get the
+        // same sid, and core keeps only one row per sid.
+        const index = yield* Effect.sync(() => {
+          const counters = grantCounters.get(stackKey) ?? new Map<string, number>();
+          grantCounters.set(stackKey, counters);
+          const next = counters.get(hostGrants.FQN) ?? 0;
+          counters.set(hostGrants.FQN, next + 1);
+          return next;
+        });
+        yield* hostGrants.bind(`Grant${index}`, {
+          grants: grants.map((grant) => ({ ...grant, objectId })),
+        });
         // Through the grants, so the host gets its token once they exist.
         return yield* makeToken("BraintrustServiceToken", {
           serviceAccountId: hostGrants.serviceAccountId,
