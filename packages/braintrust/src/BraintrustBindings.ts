@@ -7,10 +7,10 @@
  * namespace. Each binding adds the permissions it needs, on the object it
  * binds, to the host's grants, which keep the account's ACLs at exactly one
  * per distinct grant once the bound objects' ids are known. The bindings own
- * the account: an ACL on it that no binding asks for is revoked. Every
- * binding on a host shares the account and token. Destroying the host
- * revokes the token and removes the account and its grants. The deployer's
- * credentials never reach a host.
+ * the account: a deploy that changes them revokes any ACL on it that no
+ * binding asks for. Every binding on a host shares the account and token.
+ * Destroying the host revokes the token and removes the account and its
+ * grants. The deployer's credentials never reach a host.
  *
  * The token is bound into the host as `BRAINTRUST_API_KEY`, still
  * `Redacted`, with the deployer's API URL as `BRAINTRUST_API_URL`. Inside

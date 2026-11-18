@@ -36,9 +36,10 @@ export interface HostGrantsBinding {
  * direct-permission ACLs are this resource's state: every reconcile lists
  * them, creates what a binding asks for and revokes the rest. Nothing is
  * recorded, so a deploy that fails between two ACLs converges on the next
- * one, and an ACL someone else puts on the account is revoked (the host's
- * account is not for `Braintrust.Acl`). The account is its own resource, so
- * a failed grant never loses it.
+ * one. An ACL someone else puts on the account is revoked by the next deploy
+ * that changes the host's bindings, not before (the host's account is not
+ * for `Braintrust.Acl`). The account is its own resource, so a failed grant
+ * never loses it.
  */
 export type HostGrants = Resource<
   "Braintrust.HostGrants",
