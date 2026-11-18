@@ -2,6 +2,7 @@ import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import { isResolved } from "alchemy/Diff";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
+import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
@@ -80,10 +81,34 @@ const held = Effect.fn(function* (serviceAccountId: string) {
   return byKey;
 });
 
-const revoke = (aclId: string) =>
-  braintrust
-    .deleteAcl({ acl_id: aclId })
-    .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+/** ACLs on a host's account that the deployer could not revoke. */
+export class HostGrantsNotRevoked extends Data.TaggedError("HostGrantsNotRevoked")<{
+  serviceAccountId: string;
+  aclIds: string[];
+}> {
+  override get message() {
+    return `Could not revoke ACLs ${this.aclIds.join(", ")} on service account ${this.serviceAccountId}: the deployer may lack delete access to them`;
+  }
+}
+
+const revoke = Effect.fn(function* (serviceAccountId: string, aclIds: ReadonlyArray<string>) {
+  if (aclIds.length === 0) return;
+  yield* Effect.forEach(
+    aclIds,
+    (aclId) =>
+      braintrust
+        .deleteAcl({ acl_id: aclId })
+        .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void)),
+    { discard: true },
+  );
+  // Braintrust refuses a delete with the same error as one of an ACL that is
+  // gone, so only a fresh list tells them apart.
+  const remaining = new Set((yield* held(serviceAccountId)).values());
+  const kept = aclIds.filter((aclId) => remaining.has(aclId));
+  if (kept.length > 0) {
+    return yield* new HostGrantsNotRevoked({ serviceAccountId, aclIds: kept });
+  }
+});
 
 export const HostGrantsProvider = () =>
   Provider.effect(
@@ -126,14 +151,15 @@ export const HostGrantsProvider = () =>
               restrict_object_type: grant.restrictObjectType,
             });
           }
-          for (const [key, aclId] of observed) {
-            if (!desired.has(key)) yield* revoke(aclId);
-          }
+          yield* revoke(
+            serviceAccountId,
+            [...observed].filter(([key]) => !desired.has(key)).map(([, aclId]) => aclId),
+          );
           return { serviceAccountId };
         }),
         delete: Effect.fn(function* ({ output }) {
           const observed = yield* held(output.serviceAccountId);
-          yield* Effect.forEach(observed.values(), revoke, { discard: true });
+          yield* revoke(output.serviceAccountId, [...observed.values()]);
         }),
         // Service accounts can't be listed, so neither can their grants.
         list: () => Effect.succeed([]),
