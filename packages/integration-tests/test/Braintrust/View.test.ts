@@ -100,8 +100,10 @@ test.provider(
       const replan = yield* stack.plan(inProject({ viewType: "experiments" }));
       expect(replan.resources.View.action).toBe("noop");
 
-      yield* stack.destroy();
+      // Delete it while its project stays: a deleted project hides what was in it.
+      yield* stack.deploy(Braintrust.Project("Project", {}));
       yield* expectViewGone(view);
+      yield* stack.destroy();
     }),
   { tags, timeout: 120_000 },
 );
@@ -132,8 +134,10 @@ test.provider(
       });
       yield* expectViewGone(first);
 
-      yield* stack.destroy();
+      // Delete it while its project stays: a deleted project hides what was in it.
+      yield* stack.deploy(Effect.all([Braintrust.Project("A", {}), Braintrust.Project("B", {})]));
       yield* expectViewGone(moved);
+      yield* stack.destroy();
     }),
   { tags, timeout: 120_000 },
 );
@@ -155,8 +159,10 @@ test.provider(
         expect(observed.name).toBe(testName("alchemy-test-bt-view-b"));
       });
 
-      yield* stack.destroy();
+      // Delete it while its project stays: a deleted project hides what was in it.
+      yield* stack.deploy(Braintrust.Project("Project", {}));
       yield* expectViewGone(view);
+      yield* stack.destroy();
     }),
   { tags, timeout: 120_000 },
 );
@@ -189,8 +195,10 @@ test.provider(
         expect(observed.description).toBe("adopted");
       });
 
-      yield* stack.destroy();
+      // Delete it while its project stays: a deleted project hides what was in it.
+      yield* stack.deploy(Braintrust.Project("Project", {}));
       yield* expectViewGone(adopted);
+      yield* stack.destroy();
     }),
   { tags, timeout: 120_000 },
 );

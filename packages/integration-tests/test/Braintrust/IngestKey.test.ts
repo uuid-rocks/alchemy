@@ -66,8 +66,10 @@ test.provider(
       const again = yield* stack.deploy(inProject({}));
       expect(again.ingestKeyId).toBe(key.ingestKeyId);
 
-      yield* stack.destroy();
+      // Delete it while its project stays: a deleted project hides what was in it.
+      yield* stack.deploy(Braintrust.Project("Project", {}));
       yield* expectKeyGone(key.projectId, key.ingestKeyId);
+      yield* stack.destroy();
     }),
   { tags, timeout: 120_000 },
 );
@@ -101,8 +103,10 @@ test.provider(
       expect(yield* listedIds(moved.projectId)).toContain(moved.ingestKeyId);
       yield* expectKeyGone(renamed.projectId, renamed.ingestKeyId);
 
-      yield* stack.destroy();
+      // Delete it while its project stays: a deleted project hides what was in it.
+      yield* stack.deploy(Effect.all([Braintrust.Project("A", {}), Braintrust.Project("B", {})]));
       yield* expectKeyGone(moved.projectId, moved.ingestKeyId);
+      yield* stack.destroy();
     }),
   { tags, timeout: 120_000 },
 );
@@ -126,8 +130,10 @@ test.provider(
       const adopted = yield* stack.deploy(app(true));
       expect(adopted.ingestKeyId).toBe(foreign.id);
 
-      yield* stack.destroy();
+      // Delete it while its project stays: a deleted project hides what was in it.
+      yield* stack.deploy(Braintrust.Project("Project", {}));
       yield* expectKeyGone(project.projectId, foreign.id);
+      yield* stack.destroy();
     }),
   { tags, timeout: 120_000 },
 );
