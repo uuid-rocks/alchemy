@@ -3,6 +3,7 @@ import { expect } from "@alchemy.run/test";
 import * as Test from "@alchemy.run/test/Alchemy";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import { adopt, OwnedBySomeoneElse } from "alchemy/AdoptPolicy";
+import * as Drift from "alchemy/Drift";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
@@ -67,6 +68,52 @@ test.provider(
         expect(after.settings?.comparison_key).toBe("metadata.case_id");
         expect(after.settings?.blind_reviews ?? undefined).toBeUndefined();
       });
+
+      yield* stack.destroy();
+      yield* expectProjectGone(project.projectId);
+    }),
+  { tags, timeout: 120_000 },
+);
+
+test.provider(
+  "drift restores managed settings and project group memberships",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const { project, groupId } = yield* stack.deploy(
+        Effect.gen(function* () {
+          const group = yield* Braintrust.ProjectGroup("Group", {});
+          const project = yield* Braintrust.Project("Project", {
+            settings: { blindReviews: true },
+            projectGroupIds: [group.projectGroupId],
+          });
+          return { project, groupId: group.projectGroupId };
+        }),
+      );
+      expect(project.settings?.blindReviews).toBe(true);
+      expect(project.projectGroupIds).toEqual([groupId]);
+      const detect = () => Drift.detect(stack).pipe(Effect.provide(stack.state));
+      expect((yield* detect()).resources.Project?.action).toBe("unchanged");
+
+      // Out of band, as someone would in the Braintrust UI.
+      yield* braintrust.updateProject({ project_id: project.projectId, settings: {} });
+      yield* braintrust.updateProjectGroup({
+        project_group_id: groupId,
+        remove_member_projects: [project.projectId],
+      });
+      yield* eventually(detect(), (drift) => {
+        expect(drift.resources.Project?.action).toBe("drifted");
+      });
+
+      const repaired = yield* Drift.repair(stack).pipe(Effect.provide(stack.state));
+      expect(repaired.resources.Project?.action).toBe("repaired");
+      yield* eventually(getProject(project.projectId), (observed) => {
+        expect(observed.settings?.blind_reviews).toBe(true);
+      });
+      expect(
+        (yield* braintrust.getProjectGroup({ project_group_id: groupId })).member_projects,
+      ).toEqual([project.projectId]);
 
       yield* stack.destroy();
       yield* expectProjectGone(project.projectId);

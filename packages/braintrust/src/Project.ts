@@ -73,6 +73,10 @@ export interface ProjectAttributes {
   orgId: string;
   /** Textual description of the project. */
   description: string | undefined;
+  /** The managed settings as deployed, when the props set `settings`. */
+  settings: ProjectSettings | undefined;
+  /** Ids of the project groups the project is in, when the props set `projectGroupIds`. */
+  projectGroupIds: string[] | undefined;
   /** When the project was created (ISO 8601). */
   created: string | undefined;
 }
@@ -191,13 +195,53 @@ const settingsOf = (settings: ProjectSettings | undefined) => ({
   require_all_human_review_scores: settings?.requireAllHumanReviewScores,
 });
 
-const toAttributes = (project: braintrust.Project): ProjectAttributes => ({
-  projectId: project.id,
-  name: project.name,
-  orgId: project.org_id,
-  description: project.description ?? undefined,
-  created: project.created ?? undefined,
-});
+/**
+ * Settings and memberships are reported only when the props manage them
+ * (`owned`), so drift ignores the ones left to the Braintrust UI.
+ */
+const toAttributes = (
+  project: braintrust.Project,
+  owned: { settings?: boolean; projectGroupIds?: string[] } = {},
+): ProjectAttributes => {
+  const settings = project.settings ?? {};
+  return {
+    projectId: project.id,
+    name: project.name,
+    orgId: project.org_id,
+    description: project.description ?? undefined,
+    settings: owned.settings
+      ? {
+          comparisonKey: settings.comparison_key ?? undefined,
+          baselineExperimentId: settings.baseline_experiment_id ?? undefined,
+          disableRealtimeQueries: settings.disable_realtime_queries ?? undefined,
+          blindReviews: settings.blind_reviews ?? undefined,
+          requireAllHumanReviewScores: settings.require_all_human_review_scores ?? undefined,
+        }
+      : undefined,
+    projectGroupIds: owned.projectGroupIds,
+    created: project.created ?? undefined,
+  };
+};
+
+// Membership is stored on each group, so every group is listed.
+const projectGroupIdsOf = (projectId: string) =>
+  Stream.runCollect(braintrust.listProjectGroups.items({})).pipe(
+    Effect.map((groups) =>
+      groups
+        .filter((group) => !group.deleted_at && group.member_projects.includes(projectId))
+        .map((group) => group.id)
+        .sort(),
+    ),
+  );
+
+const observe = (project: braintrust.Project, props: ProjectProps | undefined) =>
+  Effect.gen(function* () {
+    return toAttributes(project, {
+      settings: props?.settings !== undefined,
+      projectGroupIds:
+        props?.projectGroupIds !== undefined ? yield* projectGroupIdsOf(project.id) : undefined,
+    });
+  });
 
 const getById = (projectId: string) =>
   braintrust.getProject({ project_id: projectId }).pipe(
@@ -225,12 +269,12 @@ export const ProjectProvider = () =>
         read: Effect.fn(function* ({ id, olds, output, previous }) {
           if (output) {
             const project = yield* getById(output.projectId);
-            return project ? toAttributes(project) : undefined;
+            return project ? yield* observe(project, olds) : undefined;
           }
           const name = yield* braintrustName(id, olds?.name);
           const project = yield* findByName(name);
           if (!project) return undefined;
-          const attrs = toAttributes(project);
+          const attrs = yield* observe(project, olds);
           // A generated name carries this instance's suffix, so it is ours.
           return olds?.name === undefined
             ? attrs
@@ -274,16 +318,12 @@ export const ProjectProvider = () =>
             project = yield* braintrust.updateProject({ project_id: project.id, ...update });
           }
 
-          // Project groups — membership is stored on each group, so observe
-          // every group the project is in. Untouched until the props first
-          // set it, so memberships made in the UI survive.
+          // Project groups — untouched until the props first set them, so
+          // memberships made in the UI survive.
           if (news.projectGroupIds !== undefined || olds?.projectGroupIds !== undefined) {
             const projectId = project.id;
             const desired = news.projectGroupIds ?? [];
-            const groups = yield* Stream.runCollect(braintrust.listProjectGroups.items({}));
-            const observed = groups
-              .filter((group) => !group.deleted_at && group.member_projects.includes(projectId))
-              .map((group) => group.id);
+            const observed = yield* projectGroupIdsOf(projectId);
             for (const groupId of desired.filter((g) => !observed.includes(g))) {
               yield* session.note(`Adding project ${name} to project group ${groupId}...`);
               yield* braintrust.updateProjectGroup({
@@ -302,7 +342,13 @@ export const ProjectProvider = () =>
             }
           }
 
-          return toAttributes(project);
+          return toAttributes(project, {
+            settings: news.settings !== undefined,
+            projectGroupIds:
+              news.projectGroupIds !== undefined
+                ? [...new Set(news.projectGroupIds)].sort()
+                : undefined,
+          });
         }),
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
