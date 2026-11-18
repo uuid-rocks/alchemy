@@ -359,7 +359,7 @@ export const ProjectProvider = () =>
           const projects = yield* Stream.runCollect(braintrust.listProjects.items({}));
           return projects
             .filter((project) => !project.deleted_at && isGeneratedName(project.name))
-            .map(toAttributes);
+            .map((project) => toAttributes(project));
         }),
       };
     }),
