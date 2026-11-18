@@ -1265,7 +1265,7 @@ describe("Host lifecycle", { tags }, () => {
 
 describe("Partial failure", { tags }, () => {
   test.provider(
-    "a deploy whose grant fails keeps the host's account, and the next deploy revokes the grant it made",
+    "a deploy whose grant fails keeps the host's account, and the next deploy revokes the grant it left",
     (stack) =>
       Effect.gen(function* () {
         yield* stack.destroy();
@@ -1275,26 +1275,32 @@ describe("Partial failure", { tags }, () => {
           const gone = yield* Braintrust.Dataset("Gone", { projectId: project.projectId });
           return { project, kept, gone };
         });
-        const ids = yield* stack.deploy(objects);
+        // The logs grant exists before the failing deploy, whatever order
+        // that deploy would create grants in.
+        const ids = yield* stack.deploy(
+          Effect.gen(function* () {
+            const all = yield* objects;
+            yield* host(
+              "PartialHost",
+              Braintrust.ReadProjectLogs(all.project).pipe(
+                Effect.provide(Braintrust.ReadProjectLogsHttp),
+              ),
+            );
+            return all;
+          }),
+        );
         // Deleted behind the stack's back: the stack still binds its id, and
-        // Braintrust refuses an ACL on it.
+        // Braintrust refuses an ACL on it, before the logs grant it no longer
+        // asks for is revoked.
         yield* braintrust.deleteDataset({ dataset_id: ids.gone.datasetId });
 
-        // The logs grant comes first, so it exists when the dataset grant fails.
         const failure = yield* stack
           .deploy(
             Effect.gen(function* () {
-              const { project, gone } = yield* objects;
+              const { gone } = yield* objects;
               return yield* host(
                 "PartialHost",
-                Effect.gen(function* () {
-                  yield* Braintrust.ReadProjectLogs(project);
-                  yield* Braintrust.ReadDataset(gone);
-                }).pipe(
-                  Effect.provide(
-                    Layer.mergeAll(Braintrust.ReadProjectLogsHttp, Braintrust.ReadDatasetHttp),
-                  ),
-                ),
+                Braintrust.ReadDataset(gone).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),
               );
             }),
           )
