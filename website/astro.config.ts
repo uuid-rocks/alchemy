@@ -1983,6 +1983,14 @@ export default defineConfig({
                 { label: "AI keys and secrets", link: "/braintrust/access/secrets" },
               ],
             },
+            {
+              label: "Evals",
+              items: [
+                { label: "Projects", link: "/braintrust/evals/projects" },
+                { label: "Datasets and snapshots", link: "/braintrust/evals/datasets" },
+                { label: "Experiments", link: "/braintrust/evals/experiments" },
+              ],
+            },
             providerResourcesEntry("Braintrust"),
           ],
         },

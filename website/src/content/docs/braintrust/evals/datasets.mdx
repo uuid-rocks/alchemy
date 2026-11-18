@@ -1,0 +1,115 @@
+---
+title: Datasets and snapshots
+description: Declare the Braintrust datasets your evals run against, pin a version with a snapshot, and read and write records from your app.
+---
+
+import Records from "../../../../components/diagrams/Records.astro";
+
+A **dataset** holds the test cases an eval runs against. Each **record** has an `input`, the `expected` output, and `metadata` you can filter on. Datasets are versioned: every write is a transaction with its own id, `_xact_id`, so you can read a dataset as it was at any point.
+
+Your Stack declares the dataset. Records come from your app, the Braintrust SDK, or the Braintrust UI.
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const tickets = yield* Braintrust.Dataset("Tickets", {
+  projectId: project.projectId,
+  description: "Golden support tickets",
+  tags: ["golden"],
+  metadata: { owner: "support-team" },
+});
+```
+
+Moving a dataset to another project replaces it, and its records are deleted with the old one. Renaming it keeps its records, but its URL keeps the first name.
+
+## Pin a version with a snapshot
+
+A **snapshot** gives one version of a dataset a name, so an eval can keep running against exactly those records while people keep adding to the dataset.
+
+<Records
+  title="Tickets · dataset"
+  columns={["id", "input", "expected", "_xact_id"]}
+  rows={[
+    ["t-1", "reset password", "Settings → Password", "…4685824"],
+    ["t-2", "cancel plan", "Billing → Cancel", "…4685824"],
+    ["t-3", "refund order", "Orders → Refund", "…7000301"],
+  ]}
+  query={{ label: 'snapshot "v1" · xactId …4685824', rows: [0, 1] }}
+  caption="Records t-1 and t-2 were written in one transaction, and t-3 later. The v1 snapshot pins the first version, so an eval on v1 sees two records whatever is added after."
+/>
+
+Take the `_xact_id` of the version you want from the dataset's records, and pin it:
+
+```typescript title="alchemy.run.ts"
+const v1 = yield* Braintrust.DatasetSnapshot("TicketsV1", {
+  datasetId: tickets.datasetId,
+  name: "v1",
+  xactId: "1000196022104685824",
+  description: "Tickets reviewed for the v1 release",
+});
+```
+
+A snapshot can't move: a new `xactId` deletes the old snapshot and creates a new one under the same name.
+
+## Read and write records from your app
+
+`ReadWriteDataset` gives a Worker or Function a client for one dataset: `fetch`, `insert`, `feedback`, `summarize`, `restore` and `previewRestore`. The host gets its own service token, with `read` and `update` on this dataset only. `ReadDataset` and `WriteDataset` grant one side.
+
+Declare the project and dataset where the Worker can import them:
+
+```typescript title="src/evals.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Effect from "effect/Effect";
+
+export const Support = Braintrust.Project("Support", {});
+
+export const Tickets = Effect.gen(function* () {
+  const project = yield* Support;
+  return yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+});
+```
+
+Then add a record for each ticket a person marks as solved, with the answer they accepted as `expected`:
+
+```typescript title="src/api.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Effect from "effect/Effect";
+import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { Tickets } from "./evals.ts";
+
+export default class Api extends Cloudflare.Worker<Api>()(
+  "Api",
+  { main: import.meta.url },
+  Effect.gen(function* () {
+    const tickets = yield* Braintrust.ReadWriteDataset(yield* Tickets);
+    return {
+      fetch: Effect.gen(function* () {
+        const { question, answer } = (yield* (yield* HttpServerRequest).json) as {
+          question: string;
+          answer: string;
+        };
+        yield* tickets.insert({ events: [{ input: question, expected: answer }] });
+        const { data_summary } = yield* tickets.summarize({ summarize_data: true });
+        return yield* HttpServerResponse.json({ records: data_summary?.total_records });
+      }).pipe(Effect.orDie),
+    };
+  }).pipe(Effect.provide(Braintrust.ReadWriteDatasetHttp)),
+) {}
+```
+
+`tickets.restore({ version })` puts the dataset back as it was at an `_xact_id`, and `previewRestore` shows what that would change first.
+
+## Use a dataset you didn't create
+
+```typescript title="alchemy.run.ts"
+const existing = Braintrust.Project.lookup({ name: "My Project" });
+const golden = Braintrust.Dataset.lookup({
+  projectId: existing.projectId,
+  name: "Golden tickets",
+});
+```
+
+## Next
+
+Run an eval over the dataset in [Experiments](/braintrust/evals/experiments).

@@ -1,0 +1,96 @@
+---
+title: Projects
+description: Declare Braintrust projects, one per AI feature and stage, configure how experiments are compared, and share access across projects with project groups.
+---
+
+import Tree from "../../../../components/diagrams/Tree.astro";
+
+A **project** holds everything about one AI feature or app: its production logs, datasets, experiments, prompts, functions, scores and views. Most of what you declare in Braintrust takes a `projectId`.
+
+Deleting a project deletes everything in it, logs and experiment results included.
+
+## Create a project
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {
+  description: "Evals and logs for the support bot",
+});
+```
+
+Without a `name`, Alchemy generates one from the Stack, the stage and the logical ID, so every stage gets its own project and a pull request's evals never mix with production's. `project.projectId` is what everything inside it takes.
+
+Give it a fixed `name` when people find it in the Braintrust UI by name. Renaming a project keeps its id and everything in it:
+
+```typescript title="alchemy.run.ts"
+const bot = yield* Braintrust.Project("Bot", { name: "support-bot" });
+```
+
+Braintrust projects carry no tags, so Alchemy recognizes a project by its name. One that already exists under a fixed name is refused unless you adopt it. See [Adopting resources](/cli/adopting-resources).
+
+## Compare experiments your way
+
+Braintrust lines up two experiments' rows by `input`. When inputs vary between runs, compare on a stable field instead, like a case id in each record's metadata:
+
+```typescript title="alchemy.run.ts"
+const triage = yield* Braintrust.Project("Triage", {
+  settings: {
+    comparisonKey: "metadata.case_id",
+    blindReviews: true,
+  },
+});
+```
+
+`blindReviews` hides other reviewers' scores until a reviewer has submitted their own. `baselineExperimentId` sets the experiment every run is compared with by default. Settings made in the UI that you don't declare are left alone, and removing one you did declare puts back Braintrust's default.
+
+## Share access across projects
+
+A **project group** is a set of projects that share access. An ACL on the group applies to every project in it, and to projects added later.
+
+<Tree
+  nodes={[
+    { id: "org", label: "acme", type: "organization", icon: "brand:braintrust" },
+    { id: "team", label: "SupportTeam", type: "project group", parent: "org", dashed: true, icon: "folders" },
+    { id: "escalations", label: "escalations", type: "project", parent: "team", icon: "folder" },
+    { id: "refunds", label: "refunds", type: "project", parent: "team", icon: "folder" },
+    { id: "research", label: "research", type: "project", parent: "org", side: true, icon: "folder" },
+  ]}
+  scopes={[{ on: "team", label: "Acl: SupportReaders · read" }]}
+  caption="Both projects in the SupportTeam group are readable by SupportReaders, through one ACL on the group. The research project isn't in the group, so the grant doesn't reach it."
+/>
+
+Each project joins groups through its own `projectGroupIds`:
+
+```typescript title="alchemy.run.ts"
+const team = yield* Braintrust.ProjectGroup("SupportTeam", {
+  description: "Projects the support team works on",
+});
+const escalations = yield* Braintrust.Project("Escalations", { projectGroupIds: [team.projectGroupId] });
+const refunds = yield* Braintrust.Project("Refunds", { projectGroupIds: [team.projectGroupId] });
+```
+
+Then grant on the group's projects with the `project_group_projects` object type:
+
+```typescript title="alchemy.run.ts"
+const readers = yield* Braintrust.Group("SupportReaders", {});
+yield* Braintrust.Acl("ReadSupportProjects", {
+  objectType: "project_group_projects",
+  objectId: team.projectGroupId,
+  groupId: readers.groupId,
+  permission: "read",
+});
+```
+
+Once a project lists `projectGroupIds`, it leaves any group it doesn't list. Leave the prop out and Alchemy doesn't touch its groups. See [Roles, groups and ACLs](/braintrust/access/access-control).
+
+## Use a project you didn't create
+
+`lookup` reads a project made in the UI, or by another Stack, by name. Alchemy never changes or deletes it, and you can add to it:
+
+```typescript title="alchemy.run.ts"
+const existing = Braintrust.Project.lookup({ name: "My Project" });
+const golden = yield* Braintrust.Dataset("Golden", { projectId: existing.projectId });
+```
+
+## Next
+
+Fill the project with test cases in [Datasets and snapshots](/braintrust/evals/datasets), and with your app's traces in [Logs and ingest keys](/braintrust/observability/logs).
