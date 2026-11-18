@@ -184,7 +184,6 @@ export const AiSecretProvider = () =>
           // Ensure — POST returns an existing secret of the same name
           // unchanged (its key too), so a concurrent create converges on one
           // secret.
-          let created = false;
           if (!secret) {
             yield* session.note(`Creating AI secret ${name}...`);
             secret = yield* braintrust.createAiSecret({
@@ -193,21 +192,18 @@ export const AiSecretProvider = () =>
               metadata: news.metadata,
               secret: news.secret,
             });
-            created = true;
           }
 
           // Sync the name and key with PATCH. The key can't be observed, so
           // it is written whenever reconcile runs: on a props change, an
           // adoption, or a drift repair after it was rotated elsewhere (which
-          // `read` reports through the changed update time). A create has
-          // just written it.
-          const update: Omit<braintrust.UpdateAiSecretRequest, "ai_secret_id"> = {};
-          if (secret.name !== name) update.name = name;
-          if (!created) update.secret = news.secret;
-          if (Object.keys(update).length > 0) {
-            yield* session.note(`Updating AI secret ${name}...`);
-            secret = yield* braintrust.updateAiSecret({ ai_secret_id: secret.id, ...update });
-          }
+          // `read` reports through the changed update time). After a create
+          // too: a POST that found an existing secret didn't write it.
+          secret = yield* braintrust.updateAiSecret({
+            ai_secret_id: secret.id,
+            name,
+            secret: news.secret,
+          });
 
           // Sync type and metadata with PUT: PATCH ignores `null` and
           // deep-merges metadata, so it can neither clear them nor drop a

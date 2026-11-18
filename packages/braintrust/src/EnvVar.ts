@@ -247,7 +247,6 @@ export const EnvVarProvider = () =>
           // Ensure — POST returns an existing variable of the same name
           // unchanged (its value too), so a concurrent create converges on
           // one variable.
-          let created = false;
           if (!envVar) {
             yield* session.note(`Creating environment variable ${news.name}...`);
             envVar = yield* braintrust.createEnvVar({
@@ -258,15 +257,16 @@ export const EnvVarProvider = () =>
               metadata: news.metadata,
               secret_type: news.secretType,
             });
-            created = true;
           }
 
           // Sync — the value can't be observed, so it is written whenever
           // reconcile runs: on a props change, an adoption, or a drift repair
           // after it was rotated elsewhere (which `read` reports through the
-          // changed update time). A create has just written it.
-          const update: Omit<braintrust.UpdateEnvVarRequest, "env_var_id" | "name"> = {};
-          if (!created) update.value = news.value;
+          // changed update time). After a create too: a POST that found an
+          // existing variable didn't write it.
+          const update: Omit<braintrust.UpdateEnvVarRequest, "env_var_id" | "name"> = {
+            value: news.value,
+          };
           // `null` clears metadata and the classification; metadata is
           // replaced as a whole.
           if (!deepEqual(envVar.metadata ?? undefined, news.metadata)) {
@@ -275,21 +275,17 @@ export const EnvVarProvider = () =>
           if ((envVar.secret_type ?? undefined) !== news.secretType) {
             update.secret_type = news.secretType ?? null;
           }
-          const updating = envVar.name !== news.name || Object.keys(update).length > 0;
-          if (updating) {
-            yield* session.note(`Updating environment variable ${news.name}...`);
-            // PATCH requires the name on every call.
-            envVar = yield* braintrust.updateEnvVar({
-              env_var_id: envVar.id,
-              name: news.name,
-              ...update,
-            });
-          }
+          // PATCH requires the name on every call.
+          envVar = yield* braintrust.updateEnvVar({
+            env_var_id: envVar.id,
+            name: news.name,
+            ...update,
+          });
 
           // Writes answer with a fully masked preview, reads with the value's
           // ends; re-read so the attributes match what `read` reports and
           // drift detection doesn't flag every write.
-          if (created || updating) envVar = (yield* getById(envVar.id)) ?? envVar;
+          envVar = (yield* getById(envVar.id)) ?? envVar;
 
           return toAttributes(envVar);
         }),
