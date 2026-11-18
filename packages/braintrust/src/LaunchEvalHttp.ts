@@ -34,7 +34,8 @@ export const LaunchEvalHttp = Layer.succeed(
       (auth, id): LaunchEvalClient =>
       (request) =>
         Effect.flatMap(id, (project_id) =>
-          auth.authorize(braintrust.createEval({ ...request, project_id })),
+          // A request variable can still carry `stream: true`; the response is read as JSON.
+          auth.authorize(braintrust.createEval({ ...request, project_id, stream: false })),
         ),
   }),
 );
