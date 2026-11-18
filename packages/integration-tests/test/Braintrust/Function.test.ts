@@ -8,6 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
+import * as Stream from "effect/Stream";
 import { testName } from "../names.ts";
 import { eventually, expectFound } from "./lookup.ts";
 
@@ -172,7 +173,7 @@ test.provider(
 );
 
 test.provider(
-  "changing the slug of a function replaces it",
+  "changing the slug of an explicitly slugged function keeps its id",
   (stack) =>
     Effect.gen(function* () {
       yield* stack.destroy();
@@ -182,15 +183,18 @@ test.provider(
       const fn = yield* stack.deploy(inProject({ slug: before, functionData: exactMatch }));
       expect(fn.slug).toBe(before);
       const moved = yield* stack.deploy(inProject({ slug: after, functionData: exactMatch }));
-      expect(moved.functionId).not.toBe(fn.functionId);
+      expect(moved.functionId).toBe(fn.functionId);
       expect(moved.slug).toBe(after);
-      yield* eventually(getFunction(moved.functionId), (observed) => {
+      yield* eventually(getFunction(fn.functionId), (observed) => {
         expect(observed.slug).toBe(after);
       });
-      yield* expectFunctionGone(fn.functionId);
+      const underOldSlug = yield* Stream.runCollect(
+        braintrust.listFunctions.items({ project_id: fn.projectId, slug: before }),
+      );
+      expect(underOldSlug.length).toBe(0);
 
       yield* stack.destroy();
-      yield* expectFunctionGone(moved.functionId);
+      yield* expectFunctionGone(fn.functionId);
     }),
   { tags, timeout: 120_000 },
 );

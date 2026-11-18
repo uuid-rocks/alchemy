@@ -33,7 +33,7 @@ export interface FunctionProps {
   /**
    * Slug the function is invoked by, unique within the project. If
    * omitted, a unique slug is generated from the stack, stage and logical
-   * ID. Changing it replaces the function.
+   * ID. Changing it updates the function in place and appends a version.
    */
   slug?: string;
   /**
@@ -136,8 +136,8 @@ export interface FunctionLookup {
  * adopted.
  *
  * :::caution
- * Changing `projectId` or `slug` replaces the function. Every version of
- * the old function is deleted with it.
+ * Changing `projectId` replaces the function. Every version of the old
+ * function is deleted with it.
  * :::
  *
  * :::caution
@@ -287,12 +287,10 @@ export const FunctionProvider = () =>
     Function,
     Effect.gen(function* () {
       return {
-        stables: ["functionId", "projectId", "slug"],
+        stables: ["functionId", "projectId"],
         diff: Effect.fn(function* ({ news, olds }) {
           if (!isResolved(news)) return undefined;
-          if (news.projectId !== olds.projectId || news.slug !== olds.slug) {
-            return { action: "replace" } as const;
-          }
+          if (news.projectId !== olds.projectId) return { action: "replace" } as const;
         }),
         lookup: Effect.fn(function* ({ projectId, slug }) {
           const fn = yield* findBySlug(projectId, slug);
@@ -327,7 +325,8 @@ export const FunctionProvider = () =>
             tags: news.tags ?? [],
           };
 
-          // Observe — by id once we have one, else by slug.
+          // Observe — by id once we have one (it survives slug changes),
+          // else by slug.
           const cached = output ? yield* getById(output.functionId) : undefined;
           let fn =
             (cached?.project_id === news.projectId ? cached : undefined) ??
@@ -341,9 +340,14 @@ export const FunctionProvider = () =>
             fn = yield* braintrust.createFunction(body);
           }
 
-          // Sync — every write appends a version, so compare first. PATCH
-          // deep-merges `function_data` and can't remove a field, so a
-          // change PUTs the whole function: one version on this slug.
+          // Sync — every write appends a version, so compare first. Only
+          // PATCH changes the slug of an existing function.
+          if (fn.slug !== slug) {
+            yield* session.note(`Changing function slug to ${slug}...`);
+            fn = yield* braintrust.updateFunction({ function_id: fn.id, slug });
+          }
+          // PATCH deep-merges `function_data` and can't remove a field, so a
+          // content change PUTs the whole function: one version on this slug.
           const observed = toAttributes(fn);
           const unchanged =
             observed.name === body.name &&
