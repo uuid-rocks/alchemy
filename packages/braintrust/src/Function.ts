@@ -362,7 +362,9 @@ export const FunctionProvider = () =>
               stripNullish: true,
             }) &&
             observed.functionType === news.functionType &&
-            deepEqual(observed.functionSchema, news.functionSchema, { stripNullish: true });
+            // Braintrust stores `function_schema` as sent, and a null inside
+            // a JSON schema is a constraint, so nulls are compared too.
+            deepEqual(observed.functionSchema, news.functionSchema);
           if (!unchanged) {
             yield* session.note(`Writing a new version of function ${slug}...`);
             fn = yield* braintrust.replaceFunction(body);

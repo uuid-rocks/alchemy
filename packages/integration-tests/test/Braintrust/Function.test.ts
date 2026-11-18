@@ -113,6 +113,42 @@ test.provider(
 );
 
 test.provider(
+  "a null in the function schema is kept, and removing it writes a new version",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const withAnswer = (answer: Record<string, unknown>) =>
+        inProject({
+          functionType: "tool",
+          functionData: exactMatch,
+          functionSchema: { parameters: { type: "object", properties: { answer } } },
+        });
+
+      const constrained = yield* stack.deploy(withAnswer({ const: null }));
+      yield* eventually(getFunction(constrained.functionId), (observed) => {
+        expect(observed.function_schema).toEqual({
+          parameters: { type: "object", properties: { answer: { const: null } } },
+        });
+      });
+      const forced = yield* stack.deploy(withAnswer({ const: null }), { force: true });
+      expect(forced.version).toBe(constrained.version);
+
+      const relaxed = yield* stack.deploy(withAnswer({}));
+      expect(relaxed.version).not.toBe(constrained.version);
+      yield* eventually(getFunction(constrained.functionId), (observed) => {
+        expect(observed.function_schema).toEqual({
+          parameters: { type: "object", properties: { answer: {} } },
+        });
+      });
+
+      yield* stack.destroy();
+      yield* expectFunctionGone(constrained.functionId);
+    }),
+  { tags, timeout: 120_000 },
+);
+
+test.provider(
   "a function can switch from inline code to a built-in scorer in place",
   (stack) =>
     Effect.gen(function* () {
