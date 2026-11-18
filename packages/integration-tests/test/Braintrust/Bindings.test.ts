@@ -3,6 +3,7 @@ import { describe, expect } from "@alchemy.run/test";
 import * as Test from "@alchemy.run/test/Alchemy";
 import * as Core from "@alchemy.run/test/Core";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
+import * as Namespace from "alchemy/Namespace";
 import type * as Output from "alchemy/Output";
 import { type BaseRuntimeContext, RuntimeContext } from "alchemy/RuntimeContext";
 import { Self } from "alchemy/Self";
@@ -1171,6 +1172,41 @@ describe("Looked-up objects", { tags }, () => {
                 yield* Braintrust.ReadDataset(lookup("lookup-a"));
                 yield* Braintrust.ReadDataset(lookup("lookup_a"));
               }).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),
+            );
+          }),
+        );
+        const { grants } = yield* grantsOf(env);
+        expect(grants).toEqual(datasets.map((dataset) => `dataset:${dataset.id}:read`).sort());
+        yield* stack.destroy();
+      }),
+    { tags, timeout: 300_000 },
+  );
+
+  test.provider(
+    "grants a host same-named datasets looked up in two projects",
+    (stack) =>
+      Effect.gen(function* () {
+        yield* stack.destroy();
+        // Both projects have the logical id `Project`, so only their FQNs differ.
+        const projects = Effect.all(
+          ["A", "B"].map((namespace) =>
+            Braintrust.Project("Project", {}).pipe(Namespace.push(namespace)),
+          ),
+        );
+        const deployed = yield* stack.deploy(projects);
+        const datasets = yield* Effect.forEach(deployed, (project) =>
+          braintrust.createDataset({ project_id: project.projectId, name: "lookup-same" }),
+        );
+        const env = yield* stack.deploy(
+          Effect.gen(function* () {
+            const bound = yield* projects;
+            return yield* host(
+              "LookupHost",
+              Effect.forEach(bound, (project) =>
+                Braintrust.ReadDataset(
+                  Braintrust.Dataset.lookup({ projectId: project.projectId, name: "lookup-same" }),
+                ),
+              ).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),
             );
           }),
         );

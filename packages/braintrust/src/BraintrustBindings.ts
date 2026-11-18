@@ -30,7 +30,9 @@ import { orDieCredentialsUnavailable } from "alchemy/Auth/Resolve";
 import * as Binding from "alchemy/Binding";
 import * as Namespace from "alchemy/Namespace";
 import * as Output from "alchemy/Output";
+import { isResource } from "alchemy/Resource";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
+import { isPlainData } from "alchemy/Util/data";
 import { sha256Object } from "alchemy/Util/sha256";
 import * as Effect from "effect/Effect";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
@@ -64,34 +66,44 @@ const pascal = (value: string) =>
   value.replace(/(^|_)([a-z])/g, (_, __, letter: string) => letter.toUpperCase());
 
 /**
- * The part of an ACL's logical id that names the bound object. A declared
- * resource has an FQN, so same-named targets in different namespaces get
- * separate ACLs. `/` would nest the ACL's own FQN, and `__` is how state
- * files encode `/`. A `lookup(...)` or `ref(...)` has no FQN (reading one
- * gives an Output), so it is named by a hash of its lookup type and props,
- * with each Output written as the expression that produces it, or of its
- * ref. Sanitising those instead would give `lookup-a` and `lookup_a` one ACL.
+ * A value as plain data that tells apart any two values that can resolve
+ * differently. An Output's `toString()` names a resource by logical id only,
+ * so `A/Project` and `B/Project` would both print `Project.projectId`; here
+ * a resource is its FQN, and every other expression its fields. A lookup is
+ * its type and props: its other fields are core internals.
+ */
+const identity = (value: unknown): unknown => {
+  if (isResource(value)) return { resource: value.FQN };
+  if (Output.isExpr(value)) {
+    const expr = (value as { [Output.ExprSymbol]?: object })[Output.ExprSymbol] ?? value;
+    if (Output.isResourceExpr(expr)) return { resource: expr.src.FQN };
+    if (Output.isLookupExpr(expr)) return { lookup: expr.lookupType, props: identity(expr.expr) };
+    return Object.fromEntries(Object.entries(expr).map(([key, field]) => [key, identity(field)]));
+  }
+  // After `isExpr`: an Output proxy is a function too.
+  if (typeof value === "function") return value.toString();
+  if (Array.isArray(value)) return value.map(identity);
+  if (isPlainData(value)) {
+    return Object.fromEntries(Object.entries(value).map(([key, field]) => [key, identity(field)]));
+  }
+  return value;
+};
+
+/**
+ * Where a binding's ACLs on `target` live in the host's namespace. A
+ * declared resource's ACL ids start with its FQN, so same-named targets in
+ * different namespaces get separate ACLs. `/` would nest the ACL's own FQN,
+ * and `__` is how state files encode `/`. A `lookup(...)` or `ref(...)` has
+ * no FQN, so its ACLs are named by a hash of its identity, in a `lookup` or
+ * `ref` namespace: a declared FQN never keeps a `/`, so it cannot land there.
  */
 const targetName = Effect.fn(function* (target: object) {
   const fqn = (target as { FQN?: unknown }).FQN;
-  if (typeof fqn === "string") return fqn.replaceAll("/", "-");
-  const expr = (target as { [Output.ExprSymbol]?: unknown })[Output.ExprSymbol] ?? target;
-  const [kind, identity] = Output.isLookupExpr(expr)
-    ? [
-        "lookup",
-        {
-          type: expr.lookupType,
-          props: Object.fromEntries(
-            Object.entries(expr.expr as object).map(([key, value]) => [
-              key,
-              Output.isExpr(value) ? value.toString() : value,
-            ]),
-          ),
-        },
-      ]
-    : // The raw expression's own `toString`, e.g. `ref(Id, { stack, stage })`.
-      ["ref", { ref: (expr as { toString(): string }).toString() }];
-  return `${kind}-${(yield* sha256Object(identity)).slice(0, 16)}`;
+  if (typeof fqn === "string") return { namespace: undefined, id: fqn.replaceAll("/", "-") };
+  return {
+    namespace: Output.isRefExpr(target) ? "ref" : "lookup",
+    id: (yield* sha256Object(identity(target) as object)).slice(0, 16),
+  };
 });
 
 /**
@@ -130,10 +142,10 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
       host.LogicalId,
       Effect.gen(function* () {
         const account = yield* makeAccount("BraintrustServiceAccount", {});
-        const targetId = yield* targetName(target);
+        const { namespace, id: targetId } = yield* targetName(target);
         for (const grant of grants) {
           const restrict = grant.restrictObjectType;
-          yield* makeAcl(
+          const acl = makeAcl(
             `${targetId}${pascal(grant.objectType)}${pascal(grant.permission)}${restrict ? pascal(restrict) : ""}`,
             {
               objectType: grant.objectType,
@@ -143,6 +155,7 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
               ...(restrict ? { restrictObjectType: restrict } : {}),
             },
           );
+          yield* namespace ? Namespace.push(namespace, acl) : acl;
         }
         return yield* makeToken("BraintrustServiceToken", {
           serviceAccountId: account.serviceAccountId,
