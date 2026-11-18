@@ -78,7 +78,8 @@ const targetName = (target: object): string => {
     ? `lookup-${Object.values(expr.expr as object)
         .map((value) => (Output.isExpr(value) ? value.toString() : String(value)))
         .join("-")}`
-    : String(expr);
+    : // The raw expression's own `toString`, e.g. `ref(Id, { stack, stage })`.
+      (expr as { toString(): string }).toString();
   return name.replace(/[^A-Za-z0-9]+/g, "-");
 };
 
