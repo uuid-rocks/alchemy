@@ -44,12 +44,13 @@ test.provider(
         postMessage: true,
       };
       const iframe = yield* stack.deploy(inProject(first));
-      const created = yield* getIframe(iframe.spanIframeId);
-      expect(created.name).toBe(iframe.name);
-      expect(created.project_id).toBe(iframe.projectId);
-      expect(created.url).toBe("https://example.com/first");
-      expect(created.description).toBe("first");
-      expect(created.post_message).toBe(true);
+      yield* eventually(getIframe(iframe.spanIframeId), (created) => {
+        expect(created.name).toBe(iframe.name);
+        expect(created.project_id).toBe(iframe.projectId);
+        expect(created.url).toBe("https://example.com/first");
+        expect(created.description).toBe("first");
+        expect(created.post_message).toBe(true);
+      });
       yield* expectFound(
         Braintrust.SpanIframe.lookup({ projectId: iframe.projectId, name: iframe.name }),
         iframe,
@@ -61,10 +62,11 @@ test.provider(
       // Changing the URL leaves the other fields as deployed.
       const moved = yield* stack.deploy(inProject({ ...first, url: "https://example.com/second" }));
       expect(moved.spanIframeId).toBe(iframe.spanIframeId);
-      const afterUrl = yield* getIframe(iframe.spanIframeId);
-      expect(afterUrl.url).toBe("https://example.com/second");
-      expect(afterUrl.description).toBe("first");
-      expect(afterUrl.post_message).toBe(true);
+      yield* eventually(getIframe(iframe.spanIframeId), (afterUrl) => {
+        expect(afterUrl.url).toBe("https://example.com/second");
+        expect(afterUrl.description).toBe("first");
+        expect(afterUrl.post_message).toBe(true);
+      });
 
       const cleared = yield* stack.deploy(inProject({ url: "https://example.com/second" }));
       expect(cleared.spanIframeId).toBe(iframe.spanIframeId);

@@ -38,11 +38,12 @@ test.provider(
       yield* stack.destroy();
 
       const tag = yield* stack.deploy(inProject({ description: "first", color: "#ef4444" }));
-      const created = yield* getTag(tag.projectTagId);
-      expect(created.name).toBe(tag.name);
-      expect(created.project_id).toBe(tag.projectId);
-      expect(created.description).toBe("first");
-      expect(created.color).toBe("#ef4444");
+      yield* eventually(getTag(tag.projectTagId), (created) => {
+        expect(created.name).toBe(tag.name);
+        expect(created.project_id).toBe(tag.projectId);
+        expect(created.description).toBe("first");
+        expect(created.color).toBe("#ef4444");
+      });
       yield* expectFound(
         Braintrust.ProjectTag.lookup({ projectId: tag.projectId, name: tag.name }),
         tag,
@@ -54,9 +55,10 @@ test.provider(
       // Changing one field leaves the other as deployed.
       const recolored = yield* stack.deploy(inProject({ description: "first", color: "#3b82f6" }));
       expect(recolored.projectTagId).toBe(tag.projectTagId);
-      const afterColor = yield* getTag(tag.projectTagId);
-      expect(afterColor.color).toBe("#3b82f6");
-      expect(afterColor.description).toBe("first");
+      yield* eventually(getTag(tag.projectTagId), (afterColor) => {
+        expect(afterColor.color).toBe("#3b82f6");
+        expect(afterColor.description).toBe("first");
+      });
 
       const cleared = yield* stack.deploy(inProject({}));
       expect(cleared.projectTagId).toBe(tag.projectTagId);

@@ -32,12 +32,13 @@ const permissionsOf = (role: braintrust.Role) =>
     .map((p) => `${p.permission}:${p.restrict_object_type ?? ""}`)
     .sort();
 
-/** Id of the system Viewer role, read straight from Braintrust. */
-const systemViewerId = braintrust.listRoles.items({ role_name: "Viewer" }).pipe(
-  Stream.filter((role) => role.name === "Viewer" && !role.org_id),
-  Stream.runHead,
-  Effect.map((role) => Option.getOrUndefined(role)?.id),
-);
+/** Id of a system role, read straight from Braintrust. */
+const systemRoleId = (name: string) =>
+  braintrust.listRoles.items({ role_name: name }).pipe(
+    Stream.filter((role) => role.name === name && !role.org_id),
+    Stream.runHead,
+    Effect.map((role) => Option.getOrUndefined(role)?.id),
+  );
 
 // The inherited role comes from a lookup of a system role.
 const withViewer = (props: Braintrust.RoleProps) =>
@@ -56,18 +57,19 @@ test.provider(
   (stack) =>
     Effect.gen(function* () {
       yield* stack.destroy();
-      const viewerId = yield* systemViewerId;
+      const viewerId = yield* systemRoleId("Viewer");
       expect(viewerId).toMatch(/^[0-9a-f-]{36}$/);
 
       const role = yield* stack.deploy(
         withViewer({ description: "first", memberPermissions: datasetEditor }),
       );
-      const created = yield* getRole(role.roleId);
-      expect(created.name).toBe(role.name);
-      expect(created.org_id).toBe(role.orgId);
-      expect(created.description).toBe("first");
-      expect(permissionsOf(created)).toEqual(["read:dataset", "update:dataset"]);
-      expect(created.member_roles).toEqual([viewerId]);
+      yield* eventually(getRole(role.roleId), (created) => {
+        expect(created.name).toBe(role.name);
+        expect(created.org_id).toBe(role.orgId);
+        expect(created.description).toBe("first");
+        expect(permissionsOf(created)).toEqual(["read:dataset", "update:dataset"]);
+        expect(created.member_roles).toEqual([viewerId]);
+      });
       yield* expectFound(Braintrust.Role.lookup({ name: role.name }), role);
 
       const plan = yield* stack.plan(
@@ -81,10 +83,11 @@ test.provider(
         withViewer({ description: "second", memberPermissions: datasetEditor }),
       );
       expect(described.roleId).toBe(role.roleId);
-      const afterDescription = yield* getRole(role.roleId);
-      expect(afterDescription.description).toBe("second");
-      expect(permissionsOf(afterDescription)).toEqual(["read:dataset", "update:dataset"]);
-      expect(afterDescription.member_roles).toEqual([viewerId]);
+      yield* eventually(getRole(role.roleId), (afterDescription) => {
+        expect(afterDescription.description).toBe("second");
+        expect(permissionsOf(afterDescription)).toEqual(["read:dataset", "update:dataset"]);
+        expect(afterDescription.member_roles).toEqual([viewerId]);
+      });
 
       // One permission kept, one removed, one added.
       const swapped = yield* stack.deploy(
@@ -97,7 +100,9 @@ test.provider(
         }),
       );
       expect(swapped.roleId).toBe(role.roleId);
-      expect(permissionsOf(yield* getRole(role.roleId))).toEqual(["delete:", "read:dataset"]);
+      yield* eventually(getRole(role.roleId), (afterSwap) => {
+        expect(permissionsOf(afterSwap)).toEqual(["delete:", "read:dataset"]);
+      });
 
       const cleared = yield* stack.deploy(Braintrust.Role("Role", {}));
       expect(cleared.roleId).toBe(role.roleId);
@@ -159,6 +164,34 @@ test.provider(
 
       yield* stack.destroy();
       yield* expectRoleGone(foreign.id);
+    }),
+  { tags, timeout: 120_000 },
+);
+
+test.provider(
+  "a role named like a system role is created beside it and never takes it over",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+      const systemId = yield* systemRoleId("Engineer");
+      expect(systemId).toMatch(/^[0-9a-f-]{36}$/);
+
+      const role = yield* stack.deploy(
+        Braintrust.Role("Role", { name: "Engineer", description: "org role" }),
+      );
+      expect(role.roleId).not.toBe(systemId);
+      yield* eventually(getRole(role.roleId), (observed) => {
+        expect(observed.org_id).toBe(role.orgId);
+        expect(observed.description).toBe("org role");
+      });
+      // Lookup prefers the organization's role over the system one.
+      yield* expectFound(Braintrust.Role.lookup({ name: "Engineer" }), role);
+
+      yield* stack.destroy();
+      yield* expectRoleGone(role.roleId);
+      const system = yield* getRole(systemId!);
+      expect(system.description ?? undefined).not.toBe("org role");
+      expect(system.deleted_at ?? undefined).toBeUndefined();
     }),
   { tags, timeout: 120_000 },
 );

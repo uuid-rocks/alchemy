@@ -51,13 +51,14 @@ test.provider(
         options: { columnOrder: ["input", "output"], rowHeight: "tall" },
       };
       const view = yield* stack.deploy(inProject(first));
-      const created = yield* getView(view);
-      expect(created.name).toBe(view.name);
-      expect(created.object_id).toBe(view.objectId);
-      expect(created.view_type).toBe("logs");
-      expect(created.description).toBe("first");
-      expect(created.view_data).toEqual({ search: { filter: ["error IS NOT NULL"] } });
-      expect(created.options).toEqual({ columnOrder: ["input", "output"], rowHeight: "tall" });
+      yield* eventually(getView(view), (created) => {
+        expect(created.name).toBe(view.name);
+        expect(created.object_id).toBe(view.objectId);
+        expect(created.view_type).toBe("logs");
+        expect(created.description).toBe("first");
+        expect(created.view_data).toEqual({ search: { filter: ["error IS NOT NULL"] } });
+        expect(created.options).toEqual({ columnOrder: ["input", "output"], rowHeight: "tall" });
+      });
       yield* expectFound(
         Braintrust.View.lookup({
           objectType: "project",
@@ -74,10 +75,11 @@ test.provider(
       // Changing the options replaces them whole and leaves the other
       // fields as deployed.
       yield* stack.deploy(inProject({ ...first, options: { rowHeight: "compact" } }));
-      const afterOptions = yield* getView(view);
-      expect(afterOptions.options).toEqual({ rowHeight: "compact" });
-      expect(afterOptions.description).toBe("first");
-      expect(afterOptions.view_data).toEqual({ search: { filter: ["error IS NOT NULL"] } });
+      yield* eventually(getView(view), (afterOptions) => {
+        expect(afterOptions.options).toEqual({ rowHeight: "compact" });
+        expect(afterOptions.description).toBe("first");
+        expect(afterOptions.view_data).toEqual({ search: { filter: ["error IS NOT NULL"] } });
+      });
 
       // The page a view applies to changes in place.
       const retyped = yield* stack.deploy(inProject({ ...first, viewType: "experiments" }));

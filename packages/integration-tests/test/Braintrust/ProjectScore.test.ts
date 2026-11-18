@@ -48,13 +48,14 @@ test.provider(
         config: { multi_select: true, destination: "expected" },
       };
       const score = yield* stack.deploy(inProject(first));
-      const created = yield* getScore(score.projectScoreId);
-      expect(created.name).toBe(score.name);
-      expect(created.project_id).toBe(score.projectId);
-      expect(created.score_type).toBe("categorical");
-      expect(created.description).toBe("first");
-      expect(created.categories).toEqual(first.categories);
-      expect(created.config).toEqual({ multi_select: true, destination: "expected" });
+      yield* eventually(getScore(score.projectScoreId), (created) => {
+        expect(created.name).toBe(score.name);
+        expect(created.project_id).toBe(score.projectId);
+        expect(created.score_type).toBe("categorical");
+        expect(created.description).toBe("first");
+        expect(created.categories).toEqual(first.categories);
+        expect(created.config).toEqual({ multi_select: true, destination: "expected" });
+      });
       yield* expectFound(
         Braintrust.ProjectScore.lookup({ projectId: score.projectId, name: score.name }),
         score,
@@ -68,10 +69,11 @@ test.provider(
         inProject({ ...first, categories: [{ name: "pass", value: 1 }] }),
       );
       expect(recategorized.projectScoreId).toBe(score.projectScoreId);
-      const afterCategories = yield* getScore(score.projectScoreId);
-      expect(afterCategories.categories).toEqual([{ name: "pass", value: 1 }]);
-      expect(afterCategories.description).toBe("first");
-      expect(afterCategories.config).toEqual({ multi_select: true, destination: "expected" });
+      yield* eventually(getScore(score.projectScoreId), (afterCategories) => {
+        expect(afterCategories.categories).toEqual([{ name: "pass", value: 1 }]);
+        expect(afterCategories.description).toBe("first");
+        expect(afterCategories.config).toEqual({ multi_select: true, destination: "expected" });
+      });
 
       // The config is replaced as a whole, not merged.
       yield* stack.deploy(inProject({ ...first, config: { destination: "metadata" } }));

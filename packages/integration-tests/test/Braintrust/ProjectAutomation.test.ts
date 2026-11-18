@@ -59,11 +59,12 @@ test.provider(
 
       const first: Props = { description: "first", config: retention(30) };
       const automation = yield* stack.deploy(inProject(first));
-      const created = yield* getAutomation(automation.projectAutomationId);
-      expect(created.name).toBe(automation.name);
-      expect(created.project_id).toBe(automation.projectId);
-      expect(created.description).toBe("first");
-      expect(created.config).toEqual(retention(30));
+      yield* eventually(getAutomation(automation.projectAutomationId), (created) => {
+        expect(created.name).toBe(automation.name);
+        expect(created.project_id).toBe(automation.projectId);
+        expect(created.description).toBe("first");
+        expect(created.config).toEqual(retention(30));
+      });
       yield* expectFound(
         Braintrust.ProjectAutomation.lookup({
           projectId: automation.projectId,
@@ -77,9 +78,10 @@ test.provider(
 
       // Changing the config leaves the description as deployed.
       yield* stack.deploy(inProject({ ...first, config: retention(90) }));
-      const afterConfig = yield* getAutomation(automation.projectAutomationId);
-      expect(afterConfig.config).toEqual(retention(90));
-      expect(afterConfig.description).toBe("first");
+      yield* eventually(getAutomation(automation.projectAutomationId), (afterConfig) => {
+        expect(afterConfig.config).toEqual(retention(90));
+        expect(afterConfig.description).toBe("first");
+      });
 
       // Switching to another kind of automation keeps the same id.
       const alert = yield* stack.deploy(inProject({ config: webhook }));
