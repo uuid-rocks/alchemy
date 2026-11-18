@@ -102,7 +102,7 @@ test.provider(
 );
 
 test.provider(
-  "a weighted score's weights can be cleared",
+  "a weighted score's weights can be removed one at a time and cleared",
   (stack) =>
     Effect.gen(function* () {
       yield* stack.destroy();
@@ -112,6 +112,15 @@ test.provider(
       );
       yield* eventually(getScore(score.projectScoreId), (observed) => {
         expect(observed.categories).toEqual({ accuracy: 2, tone: 1 });
+      });
+
+      // PATCH replaces the weight map, so a removed weight is gone.
+      const removed = yield* stack.deploy(
+        inProject({ scoreType: "weighted", categories: { accuracy: 1 } }),
+      );
+      expect(removed.categories).toEqual({ accuracy: 1 });
+      yield* eventually(getScore(score.projectScoreId), (observed) => {
+        expect(observed.categories).toEqual({ accuracy: 1 });
       });
 
       const cleared = yield* stack.deploy(inProject({ scoreType: "weighted" }));
