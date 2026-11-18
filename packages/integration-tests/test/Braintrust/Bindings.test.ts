@@ -1122,15 +1122,10 @@ describe("Host lifecycle", { tags }, () => {
           ).pipe(
             Effect.map((acls) => acls.filter((acl) => acl.user_id === before.serviceAccountId)),
           ),
-          // GET /v1/service_token ignores `starting_after`, so paging repeats tokens.
           tokens: Stream.runCollect(braintrust.listServiceTokens.items({})).pipe(
-            Effect.map((tokens) => [
-              ...new Set(
-                tokens
-                  .filter((token) => token.service_account_id === before.serviceAccountId)
-                  .map((token) => token.id),
-              ),
-            ]),
+            Effect.map((tokens) =>
+              tokens.filter((token) => token.service_account_id === before.serviceAccountId),
+            ),
           ),
         });
         const deployed = yield* owned;
