@@ -56,6 +56,9 @@ const grantKey = (grant: {
   restrictObjectType?: string;
 }) => `${grant.objectType}:${grant.objectId}:${grant.permission}:${grant.restrictObjectType ?? ""}`;
 
+const grantKeys = (bindings: ReadonlyArray<{ data: HostGrantsBinding }>) =>
+  new Set(bindings.flatMap((binding) => binding.data.grants.map(grantKey)));
+
 /** The account's direct-permission ACLs (bindings never grant roles), by grant. */
 const held = Effect.fn(function* (serviceAccountId: string) {
   const acls = yield* Stream.runCollect(
@@ -88,10 +91,18 @@ export const HostGrantsProvider = () =>
     Effect.gen(function* () {
       return {
         stables: ["serviceAccountId"],
-        diff: Effect.fn(function* ({ news, olds }) {
+        diff: Effect.fn(function* ({ news, olds, oldBindings, newBindings }) {
           if (!isResolved(news)) return undefined;
           if (news.serviceAccountId !== olds.serviceAccountId) {
             return { action: "replace" } as const;
+          }
+          // Sids are positional and bindings register in no stable order, so
+          // the same grants under shuffled sids are no change.
+          if (!isResolved(newBindings)) return undefined;
+          const before = grantKeys(oldBindings);
+          const after = grantKeys(newBindings);
+          if (before.size === after.size && [...after].every((key) => before.has(key))) {
+            return { action: "noop" } as const;
           }
         }),
         read: Effect.fn(function* ({ olds, output }) {
