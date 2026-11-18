@@ -144,6 +144,11 @@ export const DatasetSnapshotProvider = () =>
       return {
         stables: ["datasetSnapshotId", "datasetId", "xactId"],
         diff: Effect.fn(function* ({ news, olds, output }) {
+          // An id that resolves only at apply belongs to a new parent, and apply
+          // doesn't diff again, so the move is planned as a replace now.
+          if ("datasetId" in news && !isResolved(news.datasetId)) {
+            return { action: "replace" } as const;
+          }
           if (!isResolved(news)) return undefined;
           if (news.datasetId !== olds.datasetId) return { action: "replace" } as const;
           // Creating first would collide on the name in the same dataset:

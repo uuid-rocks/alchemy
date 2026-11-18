@@ -142,13 +142,15 @@ test.provider(
     Effect.gen(function* () {
       yield* stack.destroy();
 
-      // Both projects stay deployed across the replacement.
-      const program = (target: "A" | "B") =>
+      // Both projects stay deployed across the replacement. Project C is
+      // created by the deploy that moves the score into it.
+      const program = (target: "A" | "B" | "C") =>
         Effect.gen(function* () {
           const a = yield* Braintrust.Project("A", {});
           const b = yield* Braintrust.Project("B", {});
+          const c = target === "C" ? yield* Braintrust.Project("C", {}) : undefined;
           return yield* Braintrust.ProjectScore("Moving", {
-            projectId: target === "A" ? a.projectId : b.projectId,
+            projectId: target === "A" ? a.projectId : target === "B" ? b.projectId : c!.projectId,
             scoreType: "slider",
           });
         });
@@ -161,8 +163,15 @@ test.provider(
       });
       yield* expectScoreGone(first.projectScoreId);
 
-      yield* stack.destroy();
+      // C's id is unknown at plan time, and apply doesn't diff again, so the
+      // plan must already replace the score.
+      expect((yield* stack.plan(program("C"))).resources.Moving.action).toBe("replace");
+      const created = yield* stack.deploy(program("C"));
+      expect(created.projectScoreId).not.toBe(moved.projectScoreId);
       yield* expectScoreGone(moved.projectScoreId);
+
+      yield* stack.destroy();
+      yield* expectScoreGone(created.projectScoreId);
     }),
   { tags, timeout: 120_000 },
 );

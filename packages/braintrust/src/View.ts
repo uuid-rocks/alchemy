@@ -192,6 +192,11 @@ export const ViewProvider = () =>
       return {
         stables: ["viewId", "objectType", "objectId"],
         diff: Effect.fn(function* ({ news, olds }) {
+          // An id that resolves only at apply belongs to a new parent, and apply
+          // doesn't diff again, so the move is planned as a replace now.
+          if ("objectId" in news && !isResolved(news.objectId)) {
+            return { action: "replace" } as const;
+          }
           if (!isResolved(news)) return undefined;
           if (news.objectType !== olds.objectType || news.objectId !== olds.objectId) {
             return { action: "replace" } as const;

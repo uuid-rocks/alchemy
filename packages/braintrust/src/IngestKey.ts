@@ -144,8 +144,9 @@ export const IngestKeyProvider = () =>
       return {
         stables: ["ingestKeyId", "projectId", "orgId", "name", "previewName", "url"],
         diff: Effect.fn(function* ({ news, olds }) {
-          if (!isResolved(news)) return undefined;
-          if (news.projectId !== olds.projectId || news.name !== olds.name) {
+          // Every prop replaces the key, and so does one that resolves only at
+          // apply, which doesn't diff again.
+          if (!isResolved(news) || news.projectId !== olds.projectId || news.name !== olds.name) {
             return { action: "replace" } as const;
           }
         }),

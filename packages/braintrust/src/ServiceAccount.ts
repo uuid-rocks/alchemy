@@ -94,7 +94,9 @@ export const ServiceAccountProvider = () =>
       return {
         stables: ["serviceAccountId"],
         diff: Effect.fn(function* ({ id, news, olds }) {
-          if (!isResolved(news)) return undefined;
+          // A name that resolves only at apply may differ, and apply doesn't
+          // diff again: `reconcile` would keep the old account under it.
+          if (!isResolved(news)) return { action: "replace" } as const;
           const name = yield* braintrustName(id, news.name);
           const oldName = yield* braintrustName(id, olds.name);
           if (name !== oldName) return { action: "replace" } as const;

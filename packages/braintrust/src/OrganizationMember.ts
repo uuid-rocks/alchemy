@@ -131,7 +131,9 @@ export const OrganizationMemberProvider = () =>
       return {
         stables: ["userId"],
         diff: Effect.fn(function* ({ news, olds }) {
-          if (!isResolved(news)) return undefined;
+          // An email that resolves only at apply may differ, and apply doesn't
+          // diff again.
+          if (!isResolved(news)) return { action: "replace" } as const;
           if (news.email.toLowerCase() !== olds.email.toLowerCase()) {
             return { action: "replace" } as const;
           }

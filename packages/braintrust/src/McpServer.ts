@@ -166,6 +166,11 @@ export const McpServerProvider = () =>
       return {
         stables: ["mcpServerId", "projectId"],
         diff: Effect.fn(function* ({ news, olds, output }) {
+          // An id that resolves only at apply belongs to a new parent, and apply
+          // doesn't diff again, so the move is planned as a replace now.
+          if ("projectId" in news && !isResolved(news.projectId)) {
+            return { action: "replace" } as const;
+          }
           if (!isResolved(news)) return undefined;
           if (news.projectId !== olds.projectId) return { action: "replace" } as const;
           // An adoption's `olds` are the new props; `output` is what it found.

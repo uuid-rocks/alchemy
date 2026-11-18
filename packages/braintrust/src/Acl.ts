@@ -184,9 +184,9 @@ export const AclProvider = () =>
       return {
         stables: ["aclId", "orgId"],
         diff: Effect.fn(function* ({ news, olds }) {
-          if (!isResolved(news)) return undefined;
-          // An ACL has no update; any change is a new grant.
-          if (!deepEqual(news, olds)) return { action: "replace" } as const;
+          // An ACL has no update; any change is a new grant, and so is a prop
+          // that resolves only at apply, which doesn't diff again.
+          if (!isResolved(news) || !deepEqual(news, olds)) return { action: "replace" } as const;
         }),
         lookup: Effect.fn(function* (props) {
           const acl = yield* findByContent(props);
