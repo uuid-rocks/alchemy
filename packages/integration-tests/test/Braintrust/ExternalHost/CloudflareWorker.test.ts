@@ -116,7 +116,7 @@ describe.skipIf(!hasCloudflare)(
       Effect.gen(function* () {
         const body = yield* call(`/eval?dataset=${datasetId}`);
         expectOk(body);
-        expect(body.result.experiment_url).toContain("/experiments/");
+        expect(body.result.experimentUrl).toContain("/experiments/");
       }),
       { timeout: 240_000 },
     );

@@ -16,11 +16,7 @@ export interface LaunchEvalRequest extends Omit<
 /** Run an eval in the bound project and return the new experiment's summary. */
 export type LaunchEvalClient = (
   request: LaunchEvalRequest,
-) => Effect.Effect<
-  braintrust.SummarizeExperimentResponse,
-  braintrust.CreateEvalError,
-  RuntimeContext
->;
+) => Effect.Effect<braintrust.CreateEvalResponse, braintrust.CreateEvalError, RuntimeContext>;
 
 /**
  * Run an eval in a Braintrust project: Braintrust runs the task over the

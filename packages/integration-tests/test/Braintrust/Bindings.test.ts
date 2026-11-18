@@ -942,8 +942,9 @@ describe("Braintrust bindings", { tags }, () => {
             }),
           ),
         );
-        expect(summary.project_url).toContain("/p/");
-        expect(summary.experiment_url).toContain("/experiments/");
+        expect(summary.projectId).toBe(ids.projectId);
+        expect(summary.projectUrl).toContain("/p/");
+        expect(summary.experimentUrl).toContain("/experiments/");
       }),
       { tags, timeout: 180_000 },
     );
