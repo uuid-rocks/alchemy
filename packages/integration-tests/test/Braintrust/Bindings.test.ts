@@ -264,6 +264,33 @@ const settled = <A, E extends { readonly _tag: string }, R>(effect: Effect.Effec
     }),
   );
 
+/** Fetches until row `id` shows up: a write takes a few seconds to be readable. */
+const readBack = <P extends { readonly events: ReadonlyArray<{ readonly id: string }> }, E, R>(
+  fetch: Effect.Effect<P, E, R>,
+  id: string,
+) =>
+  fetch.pipe(
+    Effect.repeat({
+      until: (page) => page.events.some((event) => event.id === id),
+      schedule: Schedule.spaced("2 seconds"),
+      times: 30,
+    }),
+  );
+
+/** Adds record `id` and returns the dataset version that includes it. */
+const versionAfter = (
+  id: string,
+  insert: Braintrust.InsertDatasetEventsClient,
+  fetch: Braintrust.FetchDatasetEventsClient,
+) =>
+  Effect.gen(function* () {
+    yield* settled(insert({ events: [{ id, input: "q" }] }));
+    const { events } = yield* readBack(fetch(), id);
+    const record = events.find((event) => event.id === id);
+    expect(record?._xact_id).toBeTypeOf("string");
+    return record!._xact_id;
+  });
+
 /** The grants on a host's service account, as `<object type>:<id>:<permission>`. */
 const grantsOf = (env: Env) =>
   Effect.gen(function* () {
@@ -290,6 +317,7 @@ let deployed: {
   ids: {
     projectId: string;
     experimentId: string;
+    experimentName: string;
     datasetId: string;
     secretId: string;
     otherProjectId: string;
@@ -314,6 +342,7 @@ describe("Braintrust bindings", { tags }, () => {
             ids: {
               projectId: bound.project.projectId,
               experimentId: bound.experiment.experimentId,
+              experimentName: bound.experiment.name,
               datasetId: bound.dataset.datasetId,
               secretId: bound.secret.aiSecretId,
               otherProjectId: other.project.projectId,
@@ -369,6 +398,7 @@ describe("Braintrust bindings", { tags }, () => {
           expect(opsGrants.grants).toEqual(
             [
               `${dataset}:read`,
+              `${dataset}:delete`,
               `${dataset}:update`,
               `${experiment}:read`,
               `${experiment}:update`,
@@ -397,10 +427,8 @@ describe("Braintrust bindings", { tags }, () => {
       "fetches the project's logs, and is refused another project's and every write",
       Effect.gen(function* () {
         const { ids, reader } = deployed;
-        const page = yield* inHost(reader, readerInit(bound), ({ logs }) =>
-          settled(logs.fetch({ limit: 10 })),
-        );
-        expect(page.events).toEqual([]);
+        const page = yield* inHost(reader, readerInit(bound), ({ logs }) => settled(logs.fetch()));
+        expect(page.events.every((event) => event.project_id === ids.projectId)).toBe(true);
         expect(
           yield* refusal(
             reader,
@@ -432,8 +460,8 @@ describe("Braintrust bindings", { tags }, () => {
             summary: settled(experiment.summarize({ summarize_scores: true })),
           }),
         );
-        expect(page.events).toEqual([]);
-        expect(summary.experiment_url).toContain("/experiments/");
+        expect(page.events.every((event) => event.experiment_id === ids.experimentId)).toBe(true);
+        expect(summary.experiment_name).toBe(ids.experimentName);
         expect(
           yield* refusal(
             reader,
@@ -461,14 +489,21 @@ describe("Braintrust bindings", { tags }, () => {
         const { ids, reader } = deployed;
         const result = yield* inHost(reader, readerInit(bound), ({ dataset }) =>
           Effect.all({
-            page: settled(dataset.fetch({ limit: 10 })),
+            page: settled(dataset.fetch()),
             summary: settled(dataset.summarize({ summarize_data: true })),
-            preview: settled(dataset.previewRestore({ version: "1000192345678901" })),
           }),
         );
-        expect(result.page.events).toEqual([]);
-        expect(result.summary.data_summary?.total_records).toBe(0);
-        expect(result.preview).toEqual({ rows_to_restore: 0, rows_to_delete: 0 });
+        // Restoring the dataset to its current version changes nothing.
+        const current = result.page.events
+          .map((event) => event._xact_id)
+          .sort()
+          .at(-1);
+        const preview = yield* inHost(reader, readerInit(bound), ({ dataset }) =>
+          dataset.previewRestore({ version: current ?? "0" }),
+        );
+        expect(result.page.events.every((event) => event.dataset_id === ids.datasetId)).toBe(true);
+        expect(result.summary.data_summary?.total_records).toBe(result.page.events.length);
+        expect(preview).toEqual({ rows_to_restore: 0, rows_to_delete: 0 });
         expect(
           yield* refusal(reader, braintrust.fetchDatasetEvents({ dataset_id: ids.otherDatasetId })),
         ).toBe("NotFoundOrForbidden");
@@ -485,13 +520,9 @@ describe("Braintrust bindings", { tags }, () => {
 
   describe("WriteDataset", () => {
     test(
-      "restores the dataset, and is refused reads",
+      "is refused reads",
       Effect.gen(function* () {
         const { ids, writer } = deployed;
-        const restored = yield* inHost(writer, writerInit(bound), ({ dataset }) =>
-          settled(dataset.restore({ version: "1000192345678901" })),
-        );
-        expect(restored.rows_restored).toBe(0);
         expect(
           yield* refusal(writer, braintrust.fetchDatasetEvents({ dataset_id: ids.datasetId })),
         ).toBe("NotFoundOrForbidden");
@@ -499,7 +530,6 @@ describe("Braintrust bindings", { tags }, () => {
       { tags, timeout: 120_000 },
     );
 
-    // Blocked while the organization has no log credits (402 PaymentRequired).
     test(
       "adds records and feedback",
       Effect.gen(function* () {
@@ -534,7 +564,6 @@ describe("Braintrust bindings", { tags }, () => {
       { tags, timeout: 120_000 },
     );
 
-    // Blocked while the organization has no log credits (402 PaymentRequired).
     test(
       "logs events and feedback",
       Effect.gen(function* () {
@@ -572,7 +601,6 @@ describe("Braintrust bindings", { tags }, () => {
       { tags, timeout: 120_000 },
     );
 
-    // Blocked while the organization has no log credits (402 PaymentRequired).
     test(
       "records results and feedback",
       Effect.gen(function* () {
@@ -597,8 +625,6 @@ describe("Braintrust bindings", { tags }, () => {
     );
   });
 
-  // Blocked while the organization has no log credits (402 PaymentRequired):
-  // each round trip writes before it reads.
   describe("ReadWriteProjectLogs", () => {
     test(
       "reads back what it logs",
@@ -606,7 +632,7 @@ describe("Braintrust bindings", { tags }, () => {
         const events = yield* inHost(deployed.readWriter, readWriterInit(bound), ({ logs }) =>
           Effect.gen(function* () {
             yield* settled(logs.insert({ events: [{ id: "rw-logs", input: "q", output: "a" }] }));
-            return (yield* logs.fetch()).events;
+            return (yield* readBack(logs.fetch(), "rw-logs")).events;
           }),
         );
         expect(events.map((event) => event.id)).toContain("rw-logs");
@@ -624,7 +650,7 @@ describe("Braintrust bindings", { tags }, () => {
             yield* settled(
               experiment.insert({ events: [{ id: "rw-experiment", input: "q", output: "a" }] }),
             );
-            return (yield* experiment.fetch()).events;
+            return (yield* readBack(experiment.fetch(), "rw-experiment")).events;
           }),
         );
         expect(events.map((event) => event.id)).toContain("rw-experiment");
@@ -642,7 +668,7 @@ describe("Braintrust bindings", { tags }, () => {
             yield* settled(
               dataset.insert({ events: [{ id: "rw-dataset", input: "q", expected: "a" }] }),
             );
-            return (yield* dataset.fetch()).events;
+            return (yield* readBack(dataset.fetch(), "rw-dataset")).events;
           }),
         );
         expect(events.map((event) => event.id)).toContain("rw-dataset");
@@ -655,16 +681,21 @@ describe("Braintrust bindings", { tags }, () => {
     test(
       "fetches the project's logs",
       Effect.gen(function* () {
-        const page = yield* inHost(deployed.ops, opsInit(bound), ({ fetchLogs }) =>
-          settled(fetchLogs({ limit: 10 })),
+        const page = yield* inHost(deployed.ops, opsInit(bound), ({ insertLogs, fetchLogs }) =>
+          Effect.gen(function* () {
+            yield* settled(insertLogs({ events: [{ id: "fetch-logs", input: "q" }] }));
+            return yield* readBack(fetchLogs(), "fetch-logs");
+          }),
         );
-        expect(page.events).toEqual([]);
+        expect(page.events.map((event) => event.id)).toContain("fetch-logs");
+        expect(page.events.every((event) => event.project_id === deployed.ids.projectId)).toBe(
+          true,
+        );
       }),
       { tags, timeout: 120_000 },
     );
   });
 
-  // Blocked while the organization has no log credits (402 PaymentRequired).
   describe("InsertProjectLogs", () => {
     test(
       "logs an event",
@@ -678,7 +709,6 @@ describe("Braintrust bindings", { tags }, () => {
     );
   });
 
-  // Blocked while the organization has no log credits (402 PaymentRequired).
   describe("ProjectLogFeedback", () => {
     test(
       "scores a logged event",
@@ -699,10 +729,21 @@ describe("Braintrust bindings", { tags }, () => {
     test(
       "fetches the experiment's events",
       Effect.gen(function* () {
-        const page = yield* inHost(deployed.ops, opsInit(bound), ({ fetchExperiment }) =>
-          settled(fetchExperiment()),
+        const page = yield* inHost(
+          deployed.ops,
+          opsInit(bound),
+          ({ insertExperiment, fetchExperiment }) =>
+            Effect.gen(function* () {
+              yield* settled(
+                insertExperiment({ events: [{ id: "fetch-experiment", input: "q" }] }),
+              );
+              return yield* readBack(fetchExperiment(), "fetch-experiment");
+            }),
         );
-        expect(page.events).toEqual([]);
+        expect(page.events.map((event) => event.id)).toContain("fetch-experiment");
+        expect(
+          page.events.every((event) => event.experiment_id === deployed.ids.experimentId),
+        ).toBe(true);
       }),
       { tags, timeout: 120_000 },
     );
@@ -715,14 +756,13 @@ describe("Braintrust bindings", { tags }, () => {
         const summary = yield* inHost(deployed.ops, opsInit(bound), ({ summarizeExperiment }) =>
           settled(summarizeExperiment({ summarize_scores: true })),
         );
+        expect(summary.experiment_name).toBe(deployed.ids.experimentName);
         expect(summary.experiment_url).toContain("/experiments/");
-        expect(summary.scores ?? {}).toEqual({});
       }),
       { tags, timeout: 120_000 },
     );
   });
 
-  // Blocked while the organization has no log credits (402 PaymentRequired).
   describe("InsertExperimentEvents", () => {
     test(
       "records a result",
@@ -738,7 +778,6 @@ describe("Braintrust bindings", { tags }, () => {
     );
   });
 
-  // Blocked while the organization has no log credits (402 PaymentRequired).
   describe("ExperimentFeedback", () => {
     test(
       "comments on a recorded result",
@@ -766,10 +805,19 @@ describe("Braintrust bindings", { tags }, () => {
     test(
       "fetches the dataset's records",
       Effect.gen(function* () {
-        const page = yield* inHost(deployed.ops, opsInit(bound), ({ fetchDataset }) =>
-          settled(fetchDataset({ limit: 10 })),
+        const page = yield* inHost(
+          deployed.ops,
+          opsInit(bound),
+          ({ insertDataset, fetchDataset }) =>
+            Effect.gen(function* () {
+              yield* settled(insertDataset({ events: [{ id: "fetch-dataset", input: "q" }] }));
+              return yield* readBack(fetchDataset(), "fetch-dataset");
+            }),
         );
-        expect(page.events).toEqual([]);
+        expect(page.events.map((event) => event.id)).toContain("fetch-dataset");
+        expect(page.events.every((event) => event.dataset_id === deployed.ids.datasetId)).toBe(
+          true,
+        );
       }),
       { tags, timeout: 120_000 },
     );
@@ -779,10 +827,16 @@ describe("Braintrust bindings", { tags }, () => {
     test(
       "counts the dataset's records",
       Effect.gen(function* () {
-        const summary = yield* inHost(deployed.ops, opsInit(bound), ({ summarizeDataset }) =>
-          settled(summarizeDataset({ summarize_data: true })),
+        const { page, summary } = yield* inHost(
+          deployed.ops,
+          opsInit(bound),
+          ({ fetchDataset, summarizeDataset }) =>
+            Effect.all({
+              page: settled(fetchDataset()),
+              summary: settled(summarizeDataset({ summarize_data: true })),
+            }),
         );
-        expect(summary.data_summary?.total_records).toBe(0);
+        expect(summary.data_summary?.total_records).toBe(page.events.length);
       }),
       { tags, timeout: 120_000 },
     );
@@ -790,12 +844,19 @@ describe("Braintrust bindings", { tags }, () => {
 
   describe("PreviewDatasetRestore", () => {
     test(
-      "previews a restore of the dataset",
+      "previews restoring the dataset to an earlier version",
       Effect.gen(function* () {
-        const preview = yield* inHost(deployed.ops, opsInit(bound), ({ previewRestore }) =>
-          settled(previewRestore({ version: "1000192345678901" })),
+        const preview = yield* inHost(
+          deployed.ops,
+          opsInit(bound),
+          ({ insertDataset, fetchDataset, previewRestore }) =>
+            Effect.gen(function* () {
+              const version = yield* versionAfter("preview-kept", insertDataset, fetchDataset);
+              yield* insertDataset({ events: [{ id: "preview-dropped", input: "q" }] });
+              return yield* previewRestore({ version });
+            }),
         );
-        expect(preview).toEqual({ rows_to_restore: 0, rows_to_delete: 0 });
+        expect(preview).toEqual({ rows_to_restore: 0, rows_to_delete: 1 });
       }),
       { tags, timeout: 120_000 },
     );
@@ -803,18 +864,36 @@ describe("Braintrust bindings", { tags }, () => {
 
   describe("RestoreDataset", () => {
     test(
-      "restores the dataset to a version",
+      "restores the dataset to an earlier version",
       Effect.gen(function* () {
-        const restored = yield* inHost(deployed.ops, opsInit(bound), ({ restore }) =>
-          settled(restore({ version: "1000192345678901" })),
+        const { restored, after } = yield* inHost(
+          deployed.ops,
+          opsInit(bound),
+          ({ insertDataset, fetchDataset, restore }) =>
+            Effect.gen(function* () {
+              const version = yield* versionAfter("restore-kept", insertDataset, fetchDataset);
+              yield* insertDataset({ events: [{ id: "restore-dropped", input: "q" }] });
+              // A restore right after an insert misses it for a while (preview
+              // doesn't); restoring the same version again is a no-op once done.
+              const restored = yield* restore({ version }).pipe(
+                Effect.repeat({
+                  until: (result) => result.rows_deleted > 0,
+                  schedule: Schedule.spaced("3 seconds"),
+                  times: 30,
+                }),
+              );
+              return { restored, after: yield* fetchDataset() };
+            }),
         );
-        expect(restored).toMatchObject({ rows_restored: 0, rows_deleted: 0 });
+        expect(restored).toMatchObject({ rows_restored: 0, rows_deleted: 1 });
+        const ids = after.events.map((event) => event.id);
+        expect(ids).toContain("restore-kept");
+        expect(ids).not.toContain("restore-dropped");
       }),
       { tags, timeout: 120_000 },
     );
   });
 
-  // Blocked while the organization has no log credits (402 PaymentRequired).
   describe("InsertDatasetEvents", () => {
     test(
       "adds a record",
@@ -828,7 +907,6 @@ describe("Braintrust bindings", { tags }, () => {
     );
   });
 
-  // Blocked while the organization has no log credits (402 PaymentRequired).
   describe("DatasetFeedback", () => {
     test(
       "comments on a record",
@@ -963,8 +1041,6 @@ describe("Braintrust bindings", { tags }, () => {
   });
 });
 
-// Blocked while the organization has no log credits: creating the Function
-// answers 402 PaymentRequired, so there is nothing to invoke.
 describe("InvokeFunction", { tags }, () => {
   test.provider(
     "runs the bound function as the host",
@@ -981,7 +1057,7 @@ describe("InvokeFunction", { tags }, () => {
                 data: {
                   type: "inline",
                   runtime_context: { runtime: "node", version: "20" },
-                  code: "async function handler({ input }) { return input; }",
+                  code: "async function handler(input) { return input; }",
                 },
               },
             });

@@ -69,7 +69,6 @@ export default class BraintrustWorker extends Cloudflare.Worker<BraintrustWorker
               Effect.all({
                 page: dataset.fetch(),
                 summary: dataset.summarize({ summarize_data: true }),
-                restored: dataset.restore({ version: "1000192345678901" }),
               }),
             );
           case "/dataset/insert":

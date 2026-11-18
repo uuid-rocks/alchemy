@@ -65,12 +65,11 @@ describe.skipIf(!hasCloudflare)(
       Effect.gen(function* () {
         const body = yield* call("/logs");
         expectOk(body);
-        expect(body.result.events).toEqual([]);
+        expect(Array.isArray(body.result.events)).toBe(true);
       }),
       { timeout: 240_000 },
     );
 
-    // Blocked while the organization has no log credits (402 PaymentRequired).
     test(
       "ReadWriteProjectLogs logs an event",
       Effect.gen(function* () {
@@ -86,25 +85,22 @@ describe.skipIf(!hasCloudflare)(
       Effect.gen(function* () {
         const body = yield* call("/experiment");
         expectOk(body);
-        expect(body.result.page.events).toEqual([]);
+        expect(Array.isArray(body.result.page.events)).toBe(true);
         expect(body.result.summary.experiment_url).toContain("/experiments/");
       }),
       { timeout: 240_000 },
     );
 
     test(
-      "ReadWriteDataset fetches, summarizes and restores the dataset",
+      "ReadWriteDataset fetches and summarizes the dataset",
       Effect.gen(function* () {
         const body = yield* call("/dataset");
         expectOk(body);
-        expect(body.result.page.events).toEqual([]);
-        expect(body.result.summary.data_summary.total_records).toBe(0);
-        expect(body.result.restored.rows_restored).toBe(0);
+        expect(body.result.summary.data_summary.total_records).toBe(body.result.page.events.length);
       }),
       { timeout: 240_000 },
     );
 
-    // Blocked while the organization has no log credits (402 PaymentRequired).
     test(
       "ReadWriteDataset adds a record",
       Effect.gen(function* () {
