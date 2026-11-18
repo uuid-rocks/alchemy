@@ -69,7 +69,7 @@ const pascal = (value: string) =>
  * are one ACL.
  */
 export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
-  target: { readonly LogicalId: string },
+  target: { readonly FQN: string },
   objectId: Output.Output<string>,
   grants: ReadonlyArray<Grant>,
 ) {
@@ -98,10 +98,14 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
       host.LogicalId,
       Effect.gen(function* () {
         const account = yield* makeAccount("BraintrustServiceAccount", {});
+        // The target's FQN, not its logical id, so same-named targets in
+        // different namespaces get separate ACLs. `/` would nest the ACL's
+        // own FQN, and `__` is how state files encode `/`.
+        const targetId = target.FQN.replaceAll("/", "-");
         for (const grant of grants) {
           const restrict = grant.restrictObjectType;
           yield* makeAcl(
-            `${target.LogicalId}${pascal(grant.objectType)}${pascal(grant.permission)}${restrict ? pascal(restrict) : ""}`,
+            `${targetId}${pascal(grant.objectType)}${pascal(grant.permission)}${restrict ? pascal(restrict) : ""}`,
             {
               objectType: grant.objectType,
               objectId,
@@ -146,7 +150,7 @@ export const bindBraintrust = Effect.fn("Braintrust.bind")(function* (
  * Each `<Op>Http.ts` is a `Layer.succeed(Cap, makeHttpBinding({ … }))`.
  */
 export const makeHttpBinding =
-  <Target extends { readonly LogicalId: string }, Client>(options: {
+  <Target extends { readonly FQN: string }, Client>(options: {
     /** The bound object's id, e.g. `experiment.experimentId`. */
     readonly id: (target: Target) => Output.Output<string>;
     readonly grants: ReadonlyArray<Grant>;
