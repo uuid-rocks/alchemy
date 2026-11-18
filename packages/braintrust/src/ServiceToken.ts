@@ -1,4 +1,5 @@
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
+import { cached } from "alchemy/Artifacts";
 import { deepEqual, isResolved } from "alchemy/Diff";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
@@ -143,7 +144,10 @@ export const ServiceTokenProvider = () =>
           if (output?.expiresAt) {
             const expires = Date.parse(output.expiresAt);
             const lifetime = expires - Date.parse(output.created ?? output.expiresAt);
-            if ((yield* Clock.currentTimeMillis) >= expires - lifetime / 10) {
+            // The planner diffs twice; one clock reading per run keeps both
+            // calls on the same side of the renewal threshold.
+            const now = yield* Clock.currentTimeMillis.pipe(cached("now"));
+            if (now >= expires - lifetime / 10) {
               return { action: "replace" } as const;
             }
           }
