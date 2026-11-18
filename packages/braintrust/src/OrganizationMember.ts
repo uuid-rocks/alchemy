@@ -6,6 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "./Providers.ts";
 
@@ -166,7 +167,14 @@ export const OrganizationMemberProvider = () =>
                 send_invite_emails: news.sendInviteEmail ?? false,
               },
             });
-            user = yield* findByEmail(news.email);
+            // The member list lags the invite by a moment.
+            user = yield* findByEmail(news.email).pipe(
+              Effect.repeat({
+                until: (found) => found !== undefined,
+                schedule: Schedule.spaced("1 second"),
+                times: 10,
+              }),
+            );
             if (!user) {
               return yield* new OrganizationMemberNotInvited({ email: news.email });
             }
