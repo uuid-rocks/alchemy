@@ -80,7 +80,7 @@ const annotators = yield* Braintrust.Group("Annotators", { memberUserIds: [ada.u
 
 Set `sendInviteEmail: true` to email them the invite. Destroying the member removes them from the organization. Someone already in the organization is refused unless you adopt them, so a destroy never removes people Alchemy didn't invite.
 
-The organization's own settings are a resource too, `Braintrust.OrganizationSettings`. It changes only the settings you declare, and puts back what it found when destroyed.
+The organization's own settings are a resource too, `Braintrust.OrganizationSettings`. It changes only the settings you declare, and puts back what it found when destroyed. It doesn't rename the organization or change its data plane: a rename breaks every client that selects the organization by name, and a wrong data plane setting cuts the organization off from its data.
 
 ## In CI
 

@@ -59,8 +59,12 @@ export type OrganizationSettingsLookup = Record<string, never>;
  * restored as `auto`, which behaves the same. See
  * [Organizations](https://www.braintrust.dev/docs/guides/access-control).
  *
- * The data plane URLs are read-only here: a wrong value cuts the whole
- * organization off from its data, and the API can't unset them again.
+ * The data plane settings are read-only here: the URLs, and whether the
+ * data plane at `apiUrl` also serves the AI proxy (`is_universal_api`). A
+ * wrong value cuts the whole organization off from its data or its proxy,
+ * and the API can't unset them again. The organization's name isn't
+ * managed either: clients that select the organization by name
+ * (`BRAINTRUST_ORG_NAME`, `orgName`) stop finding it after a rename.
  *
  * ### Configuring the Organization
  * **Example:** Load images only when clicked

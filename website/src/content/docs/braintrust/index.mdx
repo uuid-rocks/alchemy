@@ -89,7 +89,9 @@ export default Alchemy.Stack(
 - **User API keys.** The API can't create them; they are made in the Braintrust UI.
 - **Users.** People join by sign-up or invite. Use `Braintrust.OrganizationMember` to invite one.
 - **Temporary proxy credentials** (`POST /v1/proxy/credentials`). Braintrust's hosted API refuses the call (`405 Method POST not supported`). Bind a proxy binding to an AI secret instead.
-- **Endpoints not in Braintrust's OpenAPI spec**: BTQL queries, uploading bundled function code, and assigning objects to environments.
+- **Renaming the organization, or changing its data plane** (`name`, `api_url`, `proxy_url`, `realtime_url`, `is_universal_api`, `is_dataplane_private`). A rename breaks every client that selects the organization by name, and a wrong data plane value cuts the organization off from its data. `OrganizationSettings` reports the URLs.
+- **The project setting `pattern_alert_mention`**, added to Braintrust's API after the SDK version this provider is built on. A mention set in the UI is kept.
+- **Endpoints not in Braintrust's OpenAPI spec**: BTQL queries, uploading bundled function code, unassigning a prompt from an environment, keeping an environment on an older version, and assigning functions to environments.
 
 ## The docs
 
