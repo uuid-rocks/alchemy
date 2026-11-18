@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { isGeneratedName } from "./internal/Ownership.ts";
+import { isGeneratedName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 /** The kind of object an environment variable is scoped to. */
@@ -207,10 +207,11 @@ export const EnvVarProvider = () =>
         // listed through a live project, so variables go first.
         nuke: { dependsOn: ["Braintrust.Project"] },
         diff: Effect.fn(function* ({ news, olds }) {
-          // An id that resolves only at apply belongs to a new parent, and apply
-          // doesn't diff again, so the move is planned as a replace now.
+          // An id that resolves only at apply may name a new parent or the
+          // same one, and apply doesn't diff again, so the move is planned as
+          // a replace now.
           if ("objectId" in news && !isResolved(news.objectId)) {
-            return { action: "replace" } as const;
+            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
           }
           if (!isResolved(news)) return undefined;
           if (news.objectType !== olds.objectType || news.objectId !== olds.objectId) {

@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, unlessDeleted } from "./internal/Ownership.ts";
+import { braintrustName, isGeneratedName, sameName, unlessDeleted } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface McpServerProps {
@@ -166,21 +166,23 @@ export const McpServerProvider = () =>
       return {
         stables: ["mcpServerId", "projectId"],
         diff: Effect.fn(function* ({ news, olds, output }) {
-          // An id that resolves only at apply belongs to a new parent, and apply
-          // doesn't diff again, so the move is planned as a replace now.
+          // An id that resolves only at apply may name a new parent or the
+          // same one, and apply doesn't diff again, so the move is planned as
+          // a replace now.
           if ("projectId" in news && !isResolved(news.projectId)) {
-            return { action: "replace" } as const;
+            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+          }
+          // A URL that resolves only at apply may carry a new origin, which
+          // Braintrust can't change. A replacement under the same name would
+          // find the old server again and PATCH its origin, so it goes first.
+          if ("url" in news && !isResolved(news.url)) {
+            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
           }
           if (!isResolved(news)) return undefined;
           if (news.projectId !== olds.projectId) return { action: "replace" } as const;
           // An adoption's `olds` are the new props; `output` is what it found.
           if (originOf(plain(news.url)) !== originOf(plain(output?.url ?? olds.url))) {
-            // A replacement under the same name would find the old server
-            // again and PATCH its origin, so it goes first.
-            return {
-              action: "replace",
-              deleteFirst: news.name !== undefined && news.name === olds.name,
-            } as const;
+            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
           }
         }),
         lookup: Effect.fn(function* ({ projectId, name }) {

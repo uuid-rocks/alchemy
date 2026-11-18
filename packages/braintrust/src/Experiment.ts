@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, unlessDeleted } from "./internal/Ownership.ts";
+import { braintrustName, isGeneratedName, sameName, unlessDeleted } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface ExperimentProps {
@@ -306,9 +306,12 @@ export const ExperimentProvider = () =>
         stables: ["experimentId", "projectId"],
         diff: Effect.fn(function* ({ news, olds, output }) {
           if ("projectId" in news) {
-            // An id that resolves only at apply belongs to a new parent, and
-            // apply doesn't diff again, so the move is planned as a replace now.
-            if (!isResolved(news.projectId)) return { action: "replace" } as const;
+            // An id that resolves only at apply may name a new parent or the
+            // same one, and apply doesn't diff again, so the move is planned as
+            // a replace now.
+            if (!isResolved(news.projectId)) {
+              return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+            }
             // An adoption's `olds` are the new props; `output` is what it found.
             // Checked before the other props resolve, for the same reason.
             const unlinked = (key: "datasetId" | "parametersId") =>
@@ -318,8 +321,7 @@ export const ExperimentProvider = () =>
               // experiment again, so it goes first.
               return {
                 action: "replace",
-                deleteFirst:
-                  news.name !== undefined && (!isResolved(news.name) || news.name === olds.name),
+                deleteFirst: sameName(news.name, olds.name),
               } as const;
             }
           }

@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName } from "./internal/Ownership.ts";
+import { braintrustName, isGeneratedName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 type CodeData = Extract<braintrust.FunctionData, { type: "code" }>["data"];
@@ -289,10 +289,11 @@ export const FunctionProvider = () =>
       return {
         stables: ["functionId", "projectId"],
         diff: Effect.fn(function* ({ news, olds }) {
-          // An id that resolves only at apply belongs to a new parent, and apply
-          // doesn't diff again, so the move is planned as a replace now.
+          // An id that resolves only at apply may name a new parent or the
+          // same one, and apply doesn't diff again, so the move is planned as
+          // a replace now.
           if ("projectId" in news && !isResolved(news.projectId)) {
-            return { action: "replace" } as const;
+            return { action: "replace", deleteFirst: sameName(news.slug, olds.slug) } as const;
           }
           if (!isResolved(news)) return undefined;
           if (news.projectId !== olds.projectId) return { action: "replace" } as const;

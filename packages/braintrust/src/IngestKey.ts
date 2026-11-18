@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName } from "./internal/Ownership.ts";
+import { braintrustName, isGeneratedName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface IngestKeyProps {
@@ -145,8 +145,17 @@ export const IngestKeyProvider = () =>
         stables: ["ingestKeyId", "projectId", "orgId", "name", "previewName", "url"],
         diff: Effect.fn(function* ({ news, olds }) {
           // Every prop replaces the key, and so does one that resolves only at
-          // apply, which doesn't diff again.
-          if (!isResolved(news) || news.projectId !== olds.projectId || news.name !== olds.name) {
+          // apply, which doesn't diff again. That one may resolve to the old
+          // project and name, where `read` would find the old key and the
+          // replacement would keep it, so the old key goes first.
+          if (!isResolved(news)) {
+            const deleteFirst =
+              !("projectId" in news) ||
+              ((!isResolved(news.projectId) || news.projectId === olds.projectId) &&
+                sameName(news.name, olds.name));
+            return { action: "replace", deleteFirst } as const;
+          }
+          if (news.projectId !== olds.projectId || news.name !== olds.name) {
             return { action: "replace" } as const;
           }
         }),

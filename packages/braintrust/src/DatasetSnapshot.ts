@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName } from "./internal/Ownership.ts";
+import { braintrustName, isGeneratedName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface DatasetSnapshotProps {
@@ -144,18 +144,23 @@ export const DatasetSnapshotProvider = () =>
       return {
         stables: ["datasetSnapshotId", "datasetId", "xactId"],
         diff: Effect.fn(function* ({ news, olds, output }) {
-          // An id that resolves only at apply belongs to a new parent, and apply
-          // doesn't diff again, so the move is planned as a replace now.
+          // An id that resolves only at apply may name a new parent or the
+          // same one, and apply doesn't diff again, so the move is planned as
+          // a replace now.
           if ("datasetId" in news && !isResolved(news.datasetId)) {
-            return { action: "replace" } as const;
+            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+          }
+          // A version is immutable. Under the same name in the same dataset,
+          // creating first would collide: Braintrust renames the new snapshot,
+          // and renaming it back fails.
+          if ("xactId" in news && !isResolved(news.xactId)) {
+            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
           }
           if (!isResolved(news)) return undefined;
           if (news.datasetId !== olds.datasetId) return { action: "replace" } as const;
-          // Creating first would collide on the name in the same dataset:
-          // Braintrust renames the new snapshot, and renaming it back fails.
           // An adoption's `olds` are the new props; `output` is what it found.
           if (news.xactId !== (output?.xactId ?? olds.xactId)) {
-            return { action: "replace", deleteFirst: true } as const;
+            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
           }
         }),
         lookup: Effect.fn(function* ({ datasetId, name }) {

@@ -184,9 +184,15 @@ export const AclProvider = () =>
       return {
         stables: ["aclId", "orgId"],
         diff: Effect.fn(function* ({ news, olds }) {
-          // An ACL has no update; any change is a new grant, and so is a prop
-          // that resolves only at apply, which doesn't diff again.
-          if (!isResolved(news) || !deepEqual(news, olds)) return { action: "replace" } as const;
+          // An ACL has no update; any change is a new grant.
+          if (isResolved(news)) {
+            return deepEqual(news, olds) ? undefined : ({ action: "replace" } as const);
+          }
+          // So is a prop that resolves only at apply, which doesn't diff
+          // again. It may resolve to the old content, and creating an
+          // identical grant returns the old one, which garbage collection
+          // would then revoke, so the old grant goes first.
+          return { action: "replace", deleteFirst: true } as const;
         }),
         lookup: Effect.fn(function* (props) {
           const acl = yield* findByContent(props);

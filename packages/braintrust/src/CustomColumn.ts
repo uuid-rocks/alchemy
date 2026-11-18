@@ -4,7 +4,7 @@ import { isResolved } from "alchemy/Diff";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import { braintrustName } from "./internal/Ownership.ts";
+import { braintrustName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface CustomColumnProps {
@@ -214,10 +214,11 @@ export const CustomColumnProvider = () =>
       return {
         stables: ["customColumnId", "objectType", "objectId", "subtype", "variant"],
         diff: Effect.fn(function* ({ news, olds }) {
-          // An id that resolves only at apply belongs to a new parent, and apply
-          // doesn't diff again, so the move is planned as a replace now.
+          // An id that resolves only at apply may name a new parent or the
+          // same one, and apply doesn't diff again, so the move is planned as
+          // a replace now.
           if ("objectId" in news && !isResolved(news.objectId)) {
-            return { action: "replace" } as const;
+            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
           }
           if (!isResolved(news)) return undefined;
           if (
