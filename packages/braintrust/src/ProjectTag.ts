@@ -188,7 +188,9 @@ export const ProjectTagProvider = () =>
           if ((tag.description || undefined) !== (news.description || undefined)) {
             update.description = news.description ?? "";
           }
-          if ((tag.color || undefined) !== news.color) update.color = news.color ?? "";
+          if ((tag.color || undefined) !== (news.color || undefined)) {
+            update.color = news.color ?? "";
+          }
           if (Object.keys(update).length > 0) {
             yield* session.note(`Updating project tag ${name}...`);
             tag = yield* braintrust.updateProjectTag({ project_tag_id: tag.id, ...update });
