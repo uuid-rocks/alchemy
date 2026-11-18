@@ -46,8 +46,25 @@ export type ProviderRequirements = Layer.Services<ReturnType<typeof providers>>;
  * configure it), and credential resolution.
  *
  * @example
- * ```ts
- * Alchemy.Stack("App", { providers: Braintrust.providers() }, ...)
+ * ```typescript
+ * import * as Alchemy from "alchemy";
+ * import * as Braintrust from "@alchemy.run/braintrust";
+ * import * as Effect from "effect/Effect";
+ *
+ * export default Alchemy.Stack(
+ *   "MyStack",
+ *   {
+ *     providers: Braintrust.providers(),
+ *     state: Alchemy.localState(),
+ *   },
+ *   Effect.gen(function* () {
+ *     const project = yield* Braintrust.Project("Support", {});
+ *     const tickets = yield* Braintrust.Dataset("Tickets", {
+ *       projectId: project.projectId,
+ *     });
+ *     return { projectId: project.projectId, datasetId: tickets.datasetId };
+ *   }),
+ * );
  * ```
  */
 export const providers = () =>
