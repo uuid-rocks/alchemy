@@ -25,24 +25,25 @@ jobs:
   live:
     name: Braintrust live tests
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Only the test step gets the key, so dependency install scripts never see it.
     env:
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      HAS_BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY != '' }}
     steps:
       # Pull requests from forks get no secrets.
       - name: Skip without BRAINTRUST_API_KEY
-        if: env.BRAINTRUST_API_KEY == ''
+        if: env.HAS_BRAINTRUST_API_KEY != 'true'
         run: echo "::notice::BRAINTRUST_API_KEY is not set, so the Braintrust live tests were skipped."
 
       - name: Checkout repository
-        if: env.BRAINTRUST_API_KEY != ''
+        if: env.HAS_BRAINTRUST_API_KEY == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Checkout distilled
-        if: env.BRAINTRUST_API_KEY != ''
+        if: env.HAS_BRAINTRUST_API_KEY == 'true'
         run: git submodule update --init --depth=1 --checkout -- submodules/distilled
 
       - name: Setup pnpm, Node.js, Bun and install dependencies
-        if: env.BRAINTRUST_API_KEY != ''
+        if: env.HAS_BRAINTRUST_API_KEY == 'true'
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           cache: true
@@ -50,5 +51,7 @@ jobs:
           require-lockfile: true
 
       - name: Run Braintrust tests
-        if: env.BRAINTRUST_API_KEY != ''
+        if: env.HAS_BRAINTRUST_API_KEY == 'true'
+        env:
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
         run: timeout 900 pnpm test:integration test/Braintrust --retry 0
