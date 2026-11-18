@@ -3,7 +3,6 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import type { Providers } from "./Providers.ts";
 
@@ -119,11 +118,32 @@ const toAttributes = (
   original,
 });
 
-/** The organization the credentials act in; a service token belongs to exactly one. */
+/** The credentials belong to more than one organization. */
+export class AmbiguousOrganization extends Data.TaggedError("AmbiguousOrganization")<{}> {
+  override get message() {
+    return "The Braintrust credentials belong to more than one organization; use a service token, which belongs to exactly one";
+  }
+}
+
+/**
+ * The organization the credentials act in. A service token belongs to
+ * exactly one; a user's API key can belong to several, and the credentials
+ * name none, so that is refused rather than guessed.
+ */
 const currentOrganization = braintrust.listOrganizations.items({}).pipe(
-  Stream.runHead,
-  Effect.map(Option.getOrUndefined),
-  Effect.flatMap((org) => (org ? Effect.succeed(org) : Effect.fail(new OrganizationNotFound()))),
+  Stream.take(2),
+  Stream.runCollect,
+  Effect.flatMap(
+    ([org, other]): Effect.Effect<
+      braintrust.Organization,
+      OrganizationNotFound | AmbiguousOrganization
+    > =>
+      !org
+        ? Effect.fail(new OrganizationNotFound())
+        : other
+          ? Effect.fail(new AmbiguousOrganization())
+          : Effect.succeed(org),
+  ),
 );
 
 const observe = (orgId: string | undefined) =>
