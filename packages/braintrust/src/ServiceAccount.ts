@@ -87,6 +87,9 @@ export class ServiceAccountNotCreated extends Data.TaggedError("ServiceAccountNo
   }
 }
 
+// Holds no grants, unlike an IAM role that carries its bindings' policies:
+// the account can't be read back, so a host's grants are a separate resource
+// (`internal/HostGrants.ts`) and a deploy whose grant fails never loses it.
 export const ServiceAccountProvider = () =>
   Provider.effect(
     ServiceAccount,

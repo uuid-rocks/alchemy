@@ -66,7 +66,9 @@ export type OrganizationSettingsLookup = Record<string, never>;
  * The data plane settings are read-only here: the URLs, and whether the
  * data plane at `apiUrl` also serves the AI proxy (`is_universal_api`). A
  * wrong value cuts the whole organization off from its data or its proxy,
- * and the API can't unset them again. The organization's name isn't
+ * and the API can't unset them again. Nor is `is_dataplane_private`
+ * managed: it records whether a self-hosted data plane is reachable only
+ * from a private network, a fact about that network Alchemy can't check. The organization's name isn't
  * managed either: clients that select the organization by name
  * (`BRAINTRUST_ORG_NAME`, `orgName`) stop finding it after a rename.
  *

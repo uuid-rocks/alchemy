@@ -99,6 +99,8 @@ export interface ViewLookup {
  *
  * Views carry no labels Alchemy can use for ownership, so a view found
  * under an explicit `name` with no prior state is refused unless adopted.
+ * Whether a view is starred isn't managed: people star views in the
+ * Braintrust UI, and every deploy would undo it.
  *
  * :::caution
  * Changing `objectType` or `objectId` replaces the view.
