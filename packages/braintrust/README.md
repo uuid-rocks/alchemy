@@ -65,6 +65,18 @@ Organization:
 - `Braintrust.Environment`: a label such as `production` for prompt and function versions
 - `Braintrust.EnvVar`: an encrypted variable for functions and scorers
 
-Every resource also has `lookup`, to reference an object Alchemy doesn't manage.
+Every resource except `ServiceAccount` and `ServiceToken` also has `lookup`, to reference an object Alchemy doesn't manage.
 
-Reference: [alchemy.run/providers](https://alchemy.run/providers).
+## Bindings
+
+Bindings give a Worker, Function or other host a typed client for one Braintrust object, with its own service account and token that can reach only that object:
+
+- Project logs: `InsertProjectLogs`, `FetchProjectLogs`, `ProjectLogFeedback`, and `ReadProjectLogs`, `WriteProjectLogs`, `ReadWriteProjectLogs`
+- Experiments: `InsertExperimentEvents`, `FetchExperimentEvents`, `ExperimentFeedback`, `SummarizeExperiment`, and `ReadExperiment`, `WriteExperiment`, `ReadWriteExperiment`
+- Datasets: `InsertDatasetEvents`, `FetchDatasetEvents`, `DatasetFeedback`, `SummarizeDataset`, `PreviewDatasetRestore`, `RestoreDataset`, and `ReadDataset`, `WriteDataset`, `ReadWriteDataset`
+- `InvokeFunction` runs a function or prompt, and `LaunchEval` runs an eval in a project
+- The AI proxy, over one AI secret: `ProxyChatCompletions`, `ProxyCompletions`, `ProxyEmbeddings`, `ProxyAuto`, `ProxyRequest`
+
+Each has an `…Http` layer to provide. Creating the host's token needs a deployer signed in with a service token (`bt-st-…`).
+
+Docs: [alchemy.run/braintrust](https://alchemy.run/braintrust). Reference: [alchemy.run/providers](https://alchemy.run/providers).
