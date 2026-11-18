@@ -59,8 +59,9 @@ test.provider(
 
       const token = yield* stack.deploy(program(3600));
       expect(Redacted.isRedacted(token.key)).toBe(true);
-      expect(Redacted.value(token.key)).toMatch(/^bt-st-/);
-      expect(token.previewName.slice(-4)).toBe(Redacted.value(token.key).slice(-4));
+      // Assertions on the key compare booleans, so a failure never prints it.
+      expect(Redacted.value(token.key).startsWith("bt-st-")).toBe(true);
+      expect(token.previewName.slice(-4) === Redacted.value(token.key).slice(-4)).toBe(true);
       expect(token.expiresAt).toBeTypeOf("string");
       const observed = yield* getServiceToken(token.serviceTokenId);
       expect(observed.name).toBe(token.name);
@@ -77,12 +78,12 @@ test.provider(
       // A redeploy keeps the key Braintrust returned once.
       const redeployed = yield* stack.deploy(program(3600));
       expect(redeployed.serviceTokenId).toBe(token.serviceTokenId);
-      expect(Redacted.value(redeployed.key)).toBe(Redacted.value(token.key));
+      expect(Redacted.value(redeployed.key) === Redacted.value(token.key)).toBe(true);
 
       const rotated = yield* stack.deploy(program(7200));
       expect(rotated.serviceTokenId).not.toBe(token.serviceTokenId);
       expect(rotated.serviceAccountId).toBe(token.serviceAccountId);
-      expect(Redacted.value(rotated.key)).not.toBe(Redacted.value(token.key));
+      expect(Redacted.value(rotated.key) === Redacted.value(token.key)).toBe(false);
       yield* expectTokenGone(token.serviceTokenId);
       // Braintrust caches accepted keys for a while after revocation.
       const stillAccepted = yield* accepts(token.key).pipe(

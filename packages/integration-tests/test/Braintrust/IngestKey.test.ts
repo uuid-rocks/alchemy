@@ -53,7 +53,7 @@ test.provider(
       expect(Redacted.isRedacted(key.url)).toBe(true);
       const url = key.url ? Redacted.value(key.url) : "";
       expect(url.startsWith("https://")).toBe(true);
-      expect(JSON.stringify(key)).not.toContain(url);
+      expect(JSON.stringify(key).includes(url)).toBe(false);
       yield* expectFound(
         Braintrust.IngestKey.lookup({ projectId: key.projectId, ingestKeyId: key.ingestKeyId }),
         key,
