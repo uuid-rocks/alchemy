@@ -47,9 +47,10 @@ A new path on the same origin updates the server in place. Moving `url` to anoth
 Some servers take their key in the URL. Pass it as a `Redacted` value, and the `url` attribute stays `Redacted` too:
 
 ```typescript title="alchemy.run.ts"
+const toolsUrl = yield* Config.Redacted("TOOLS_MCP_URL");
 const tools = yield* Braintrust.McpServer("Tools", {
   projectId: project.projectId,
-  url: yield* Config.Redacted("TOOLS_MCP_URL"),
+  url: toolsUrl,
 });
 ```
 

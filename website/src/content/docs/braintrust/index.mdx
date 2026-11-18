@@ -37,10 +37,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   { main: import.meta.url },
   Effect.gen(function* () {
-    const log = yield* Braintrust.InsertProjectLogs(yield* Support);
+    const support = yield* Support;
+    const log = yield* Braintrust.InsertProjectLogs(support);
     return {
       fetch: Effect.gen(function* () {
-        const question = yield* (yield* HttpServerRequest).text;
+        const request = yield* HttpServerRequest;
+        const question = yield* request.text;
         const answer = "Reset it from Settings → Password.";
         yield* log({ events: [{ input: question, output: answer }] });
         return yield* HttpServerResponse.json({ answer });

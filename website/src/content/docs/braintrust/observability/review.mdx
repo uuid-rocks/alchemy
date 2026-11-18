@@ -81,10 +81,12 @@ export default class Feedback extends Cloudflare.Worker<Feedback>()(
   "Feedback",
   { main: import.meta.url },
   Effect.gen(function* () {
-    const feedback = yield* Braintrust.ProjectLogFeedback(yield* Support);
+    const support = yield* Support;
+    const feedback = yield* Braintrust.ProjectLogFeedback(support);
     return {
       fetch: Effect.gen(function* () {
-        const { logId, helpful, comment } = (yield* (yield* HttpServerRequest).json) as {
+        const request = yield* HttpServerRequest;
+        const { logId, helpful, comment } = (yield* request.json) as {
           logId: string;
           helpful: boolean;
           comment?: string;

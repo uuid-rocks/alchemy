@@ -165,10 +165,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   { main: import.meta.url },
   Effect.gen(function* () {
-    const classify = yield* Braintrust.InvokeFunction(yield* Classify);
+    const fn = yield* Classify;
+    const classify = yield* Braintrust.InvokeFunction(fn);
     return {
       fetch: Effect.gen(function* () {
-        const ticket = yield* (yield* HttpServerRequest).text;
+        const request = yield* HttpServerRequest;
+        const ticket = yield* request.text;
         const queue = yield* classify({ input: ticket });
         return yield* HttpServerResponse.json({ queue });
       }).pipe(Effect.orDie),

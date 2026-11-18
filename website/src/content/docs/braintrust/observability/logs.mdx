@@ -49,10 +49,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   { main: import.meta.url },
   Effect.gen(function* () {
-    const log = yield* Braintrust.InsertProjectLogs(yield* Support);
+    const support = yield* Support;
+    const log = yield* Braintrust.InsertProjectLogs(support);
     return {
       fetch: Effect.gen(function* () {
-        const question = yield* (yield* HttpServerRequest).text;
+        const request = yield* HttpServerRequest;
+        const question = yield* request.text;
         const answer = "Reset it from Settings → Password.";
         const { row_ids } = yield* log({
           events: [{ input: question, output: answer, metadata: { model: "gpt-4o-mini" } }],
@@ -71,7 +73,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
 `FetchProjectLogs` grants `read` instead, and its client pages through the logs with `fetch({ limit, cursor })`. `ReadWriteProjectLogs` grants both, with `fetch`, `insert` and `feedback` on one client:
 
 ```typescript
-const logs = yield* Braintrust.ReadWriteProjectLogs(yield* Support);
+const support = yield* Support;
+const logs = yield* Braintrust.ReadWriteProjectLogs(support);
 const { events, cursor } = yield* logs.fetch({ limit: 100 });
 ```
 
