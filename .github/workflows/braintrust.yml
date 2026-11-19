@@ -1,6 +1,6 @@
 name: Braintrust
 
-# Runs the Braintrust provider's live suite against the test organization.
+# Runs the Braintrust provider's live suite and example against the test organization.
 # Check runs no provider live tests, and this one needs a Braintrust key.
 
 on:
@@ -9,6 +9,7 @@ on:
     paths:
       - "packages/braintrust/**"
       - "packages/integration-tests/test/Braintrust/**"
+      - "examples/braintrust-worker/**"
       - "submodules/distilled"
       - ".github/workflows/braintrust.yml"
   workflow_dispatch:
@@ -25,7 +26,7 @@ jobs:
   live:
     name: Braintrust live tests
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    # Only the test step gets the keys, so dependency install scripts never see them.
+    # Only the test steps get the keys, so dependency install scripts never see them.
     env:
       HAS_BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY != '' }}
     steps:
@@ -58,3 +59,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.TEST_CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TEST_CLOUDFLARE_ACCOUNT_ID }}
         run: timeout 900 pnpm test:integration test/Braintrust --retry 0
+
+      # The example deploys a Worker, so it needs the Cloudflare keys too.
+      - name: Run Braintrust example
+        if: env.HAS_BRAINTRUST_API_KEY == 'true'
+        env:
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TEST_CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TEST_CLOUDFLARE_ACCOUNT_ID }}
+        run: timeout 900 pnpm test:examples braintrust-worker --skip-cli
