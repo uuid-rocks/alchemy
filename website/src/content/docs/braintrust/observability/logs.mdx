@@ -1,0 +1,94 @@
+---
+title: Logs and ingest keys
+description: Log your app's production traces to a Braintrust project from a Worker with the InsertProjectLogs binding, read them back, and give browser clients an ingest key.
+---
+
+import Tree from "../../../../components/diagrams/Tree.astro";
+
+A project's **logs** are its production traces. Each trace is a tree of **spans**, one per step your app took: the request, a model call, a tool call. Each span has an `input`, an `output`, `metadata` you filter on, and the `scores` that reviewers and online scorers add later.
+
+Writing logs needs a key with `update` on the project's logs. A Worker gets its own through a binding. A browser, or any client you can't trust with an API key, gets an **ingest key** that can only write one project's logs.
+
+<Tree
+  nodes={[
+    { id: "worker", label: "Api", type: "Worker", icon: "square-function", specs: [["key", "own service token"]] },
+    { id: "browser", label: "browser", type: "your web app", icon: "app-window", specs: [["key", "ingest key"]] },
+    { id: "org", label: "acme", type: "organization", icon: "brand:braintrust" },
+    { id: "project", label: "support", type: "project", parent: "org", icon: "folder" },
+    { id: "logs", label: "logs", type: "project logs", parent: "project", tone: "accent", icon: "scroll-text", specs: [["holds", "traces of spans"], ["each", "input · output"], ["later", "scores · tags"]] },
+  ]}
+  areas={["worker org", "browser org"]}
+  phoneAreas={["org org", "worker browser"]}
+  colGap={3}
+  links={[
+    { from: "worker", to: "logs", label: "inserts" },
+    { from: "browser", to: "logs", label: "inserts" },
+  ]}
+  caption="Two writers, each with a key that can only write this project's logs: the Worker's own service token, and an ingest key in the browser."
+/>
+
+## Log from a Worker
+
+`InsertProjectLogs` binds a project's logs to a Worker or Function. The host gets its own service account and token, with `update` on this project's logs only, passed in as `BRAINTRUST_API_KEY`. Destroying the host cancels the token. Creating it needs a deployer signed in with a service token; see [Setup](/braintrust/setup#choose-a-key).
+
+```typescript title="src/evals.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+
+export const Support = Braintrust.Project("Support", {});
+```
+
+```typescript title="src/api.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Effect from "effect/Effect";
+import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { Support } from "./evals.ts";
+
+export default class Api extends Cloudflare.Worker<Api>()(
+  "Api",
+  { main: import.meta.url },
+  Effect.gen(function* () {
+    const log = yield* Braintrust.InsertProjectLogs(Support);
+    return {
+      fetch: Effect.gen(function* () {
+        const request = yield* HttpServerRequest;
+        const question = yield* request.text;
+        const answer = "Reset it from Settings → Password.";
+        const { row_ids } = yield* log({
+          events: [{ input: question, output: answer, metadata: { model: "gpt-4o-mini" } }],
+        });
+        return yield* HttpServerResponse.json({ answer, logId: row_ids[0] });
+      }).pipe(Effect.orDie),
+    };
+  }).pipe(Effect.provide(Braintrust.InsertProjectLogsHttp)),
+) {}
+```
+
+`row_ids` are the ids of the logged rows. Hand one back to the client, and it can rate the answer later; see [Human review](/braintrust/observability/review#feedback-from-your-users).
+
+## Read logs back
+
+`FetchProjectLogs` grants `read` instead, and its client pages through the logs with `fetch({ limit, cursor })`. `ReadWriteProjectLogs` grants both, with `fetch`, `insert` and `feedback` on one client:
+
+```typescript
+const logs = yield* Braintrust.ReadWriteProjectLogs(Support);
+const { events, cursor } = yield* logs.fetch({ limit: 100 });
+```
+
+## Ingest keys for browsers
+
+An **ingest key** is a publishable credential: it can only write logs, to one project. It never expires, and lasts until it is deleted:
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const key = yield* Braintrust.IngestKey("BrowserLogs", { projectId: project.projectId });
+```
+
+Braintrust returns the key inside a configuration URL, `key.url`, which stays `Redacted`. Pass it to the client that sends logs.
+
+An ingest key can't be changed: a new `name` or `projectId` deletes the key and creates one with a different URL. Braintrust may keep accepting a deleted key for a while, until its caches expire.
+
+## Next
+
+Turn logs into something to act on with [Human review](/braintrust/observability/review), saved [Views and columns](/braintrust/observability/views) and [Automations](/braintrust/observability/automations).

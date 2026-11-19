@@ -1,0 +1,96 @@
+---
+title: Braintrust
+description: Declare Braintrust projects, datasets, experiments, prompts, scorers and access control in the same TypeScript program as the app they evaluate.
+---
+
+import HubMap from "../../../components/HubMap.astro";
+
+Braintrust is an evals and observability platform for LLM apps that stores your production traces, runs prompts and code against datasets, and scores every run so you can compare it with the last.
+
+Prompts and scorers live in Braintrust as versioned objects your code loads and invokes by slug, and Braintrust calls your model providers with keys it holds for your organization.
+
+**New to Braintrust?** Start with [What is Braintrust?](/braintrust/what-is-braintrust).
+
+## A quick example
+
+A Project holds one AI feature's logs, datasets and experiments:
+
+```typescript title="src/evals.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+
+export const Support = Braintrust.Project("Support", {
+  description: "Evals and logs for the support bot",
+});
+```
+
+A Worker logs each answer to the project, with a token that can only write that project's logs:
+
+```typescript title="src/api.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Effect from "effect/Effect";
+import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { Support } from "./evals.ts";
+
+export default class Api extends Cloudflare.Worker<Api>()(
+  "Api",
+  { main: import.meta.url },
+  Effect.gen(function* () {
+    const log = yield* Braintrust.InsertProjectLogs(Support);
+    return {
+      fetch: Effect.gen(function* () {
+        const request = yield* HttpServerRequest;
+        const question = yield* request.text;
+        const answer = "Reset it from Settings → Password.";
+        yield* log({ events: [{ input: question, output: answer }] });
+        return yield* HttpServerResponse.json({ answer });
+      }).pipe(Effect.orDie),
+    };
+  }).pipe(Effect.provide(Braintrust.InsertProjectLogsHttp)),
+) {}
+```
+
+The Stack deploys both, with a Dataset of test cases next to the project:
+
+```typescript title="alchemy.run.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import Api from "./src/api.ts";
+import { Support } from "./src/evals.ts";
+
+export default Alchemy.Stack(
+  "MyApp",
+  {
+    providers: Layer.mergeAll(Cloudflare.providers(), Braintrust.providers()),
+    state: Cloudflare.state(),
+  },
+  Effect.gen(function* () {
+    const project = yield* Support;
+    yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+    const api = yield* Api;
+    return { url: api.url.as<string>() };
+  }),
+);
+```
+
+## Where to start
+
+**Want to build?** Connect your organization in [Setup](/braintrust/setup), then declare your first project in [Projects](/braintrust/evals/projects).
+
+**Looking for something specific?** Every section of these docs is listed below, and every resource is in the generated [API reference](/providers).
+
+## Out of scope
+
+- **User API keys.** The API can't create them; they are made in the Braintrust UI.
+- **Users.** People join by sign-up or invite. Use `Braintrust.OrganizationMember` to invite one.
+- **Temporary proxy credentials** (`POST /v1/proxy/credentials`). Braintrust's hosted API refuses the call (`405 Method POST not supported`). Bind a proxy binding to an AI secret instead.
+- **Renaming the organization, or changing its data plane** (`name`, `api_url`, `proxy_url`, `realtime_url`, `is_universal_api`, `is_dataplane_private`). A rename breaks every client that selects the organization by name, and a wrong data plane value cuts the organization off from its data. `OrganizationSettings` reports the URLs.
+- **Endpoints not in Braintrust's OpenAPI spec**: BTQL queries, uploading bundled function code, unassigning a prompt from an environment, keeping an environment on an older version, and assigning functions to environments.
+
+## The docs
+
+<HubMap />

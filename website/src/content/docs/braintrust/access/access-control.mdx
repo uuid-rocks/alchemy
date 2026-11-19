@@ -1,0 +1,135 @@
+---
+title: Roles, groups and ACLs
+description: Give people and service accounts access to Braintrust projects, datasets and experiments with groups, roles and ACLs declared in your Stack.
+---
+
+import Tree from "../../../../components/diagrams/Tree.astro";
+
+Braintrust decides who can do what with three things. A **group** is a set of members. A **role** is a set of permissions: `create`, `read`, `update`, `delete`, and the same four on ACLs. An **ACL** grants one role, or one permission, to one member or group on one object.
+
+Grants flow down. Objects nest, organization over project over the project's logs, datasets, experiments and prompts, and a grant on one covers everything inside it.
+
+<Tree
+  nodes={[
+    {
+      id: "org", label: "acme", type: "organization", icon: "brand:braintrust",
+      areas: ["support support triage"],
+      phoneAreas: ["support", "triage"],
+    },
+    {
+      id: "support", label: "support", type: "project", parent: "org", icon: "folder",
+      areas: ["logs tickets baseline"],
+      phoneAreas: ["logs tickets", "baseline baseline"],
+    },
+    { id: "logs", label: "logs", type: "project logs", parent: "support", icon: "scroll-text" },
+    { id: "tickets", label: "tickets", type: "dataset", parent: "support", icon: "database" },
+    { id: "baseline", label: "baseline", type: "experiment", parent: "support", icon: "flask-conical" },
+    { id: "triage", label: "triage", type: "project", parent: "org", icon: "folder" },
+  ]}
+  scopes={[{ on: "support", label: "Acl: Reviewers · read" }]}
+  caption="An ACL on the support project lets the Reviewers group read its logs, datasets and experiments. It grants nothing on triage."
+/>
+
+## Grant a group access to a project
+
+Declare the group and an ACL on the project:
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const reviewers = yield* Braintrust.Group("Reviewers", {});
+yield* Braintrust.Acl("ReviewersRead", {
+  objectType: "project",
+  objectId: project.projectId,
+  groupId: reviewers.groupId,
+  permission: "read",
+});
+```
+
+An ACL can't be edited, so changing any of its props replaces it: the new grant is created before the old one is removed. Destroying it removes only that grant. A grant that already exists, made in the UI, is refused unless you adopt it, so a destroy never removes access someone else gave.
+
+## Groups
+
+A group's members are users and service accounts, listed by id. Once you list them, they are exactly the group's members; leave `memberUserIds` unset to keep members added in the UI:
+
+```typescript title="alchemy.run.ts"
+const ci = yield* Braintrust.ServiceAccount("CI", {});
+const evaluators = yield* Braintrust.Group("Evaluators", {
+  description: "Runs evals from CI",
+  memberUserIds: [ci.serviceAccountId],
+});
+```
+
+A group can also include everyone in other groups, like the built-in `Owners`, `Engineers` and `Viewers`. Find those with `lookup`:
+
+```typescript title="alchemy.run.ts"
+const engineers = Braintrust.Group.lookup({ name: "Engineers" });
+const leads = yield* Braintrust.Group("Leads", { memberGroupIds: [engineers.groupId] });
+```
+
+## Roles
+
+Braintrust's system roles, like `Owner`, `Engineer` and `Viewer`, cover the common cases. A custom role grants exactly the permissions you list. `restrictObjectType` narrows a permission to one kind of object inside the one the role is granted on:
+
+```typescript title="alchemy.run.ts"
+const datasetEditor = yield* Braintrust.Role("DatasetEditor", {
+  description: "Read and edit datasets",
+  memberPermissions: [
+    { permission: "read", restrictObjectType: "dataset" },
+    { permission: "update", restrictObjectType: "dataset" },
+  ],
+});
+```
+
+A role can extend another, so start from a system role and add to it:
+
+```typescript title="alchemy.run.ts"
+const viewer = Braintrust.Role.lookup({ name: "Viewer" });
+const reviewer = yield* Braintrust.Role("Reviewer", {
+  memberRoleIds: [viewer.roleId],
+  memberPermissions: [{ permission: "update", restrictObjectType: "experiment" }],
+});
+```
+
+Grant a role with an ACL that sets `roleId` instead of `permission`:
+
+```typescript title="alchemy.run.ts"
+yield* Braintrust.Acl("ReviewersOnSupport", {
+  objectType: "project",
+  objectId: project.projectId,
+  groupId: reviewers.groupId,
+  roleId: reviewer.roleId,
+});
+```
+
+## Grant one member one permission
+
+An ACL can name a member instead of a group, and `restrictObjectType` narrows it the same way. This one lets the CI service account read the project's datasets and nothing else in it:
+
+```typescript title="alchemy.run.ts"
+yield* Braintrust.Acl("CiReadsDatasets", {
+  objectType: "project",
+  objectId: project.projectId,
+  userId: ci.serviceAccountId,
+  permission: "read",
+  restrictObjectType: "dataset",
+});
+```
+
+## Several projects, or the whole organization
+
+To give a group the same access to several projects, put them in a project group and grant on that. See [Projects](/braintrust/evals/projects#share-access-across-projects).
+
+A grant on the organization covers every project in it:
+
+```typescript title="alchemy.run.ts"
+const org = Braintrust.OrganizationSettings.lookup({});
+const auditors = yield* Braintrust.Group("Auditors", {});
+yield* Braintrust.Acl("AuditorsReadAll", {
+  objectType: "organization",
+  objectId: org.orgId,
+  groupId: auditors.groupId,
+  permission: "read",
+});
+```
+
+See [Access control](https://www.braintrust.dev/docs/guides/access-control) in Braintrust's docs for every permission and object type.

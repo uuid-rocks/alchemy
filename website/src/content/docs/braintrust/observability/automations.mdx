@@ -1,0 +1,72 @@
+---
+title: Automations
+description: Declare Braintrust automations that alert you when logs match a filter, export logs on a schedule, or delete them after a retention period.
+---
+
+import Timeline from "../../../../components/diagrams/Timeline.astro";
+
+An **automation** is a rule Braintrust runs on a project's data. An alert calls a webhook, posts to Slack or pages PagerDuty when new logs match a BTQL filter. An export copies logs to your cloud storage on a schedule. A retention rule deletes logs older than a number of days.
+
+## Alert on errors
+
+An alert fires on logs that match `btql_filter`, at most once per `interval_seconds`, so a burst of errors makes one call rather than hundreds:
+
+<Timeline
+  end={3}
+  lanes={[
+    { id: "logs", label: "error logs" },
+    { id: "hook", label: "webhook" },
+  ]}
+  bars={[
+    { lane: "logs", start: 0.2, end: 0.3 },
+    { lane: "logs", start: 0.45, end: 0.55 },
+    { lane: "logs", start: 0.7, end: 0.8 },
+    { lane: "logs", start: 1.6, end: 1.7 },
+    { lane: "logs", start: 2.1, end: 2.2 },
+    { lane: "hook", start: 0.2, end: 0.6, label: "call", tone: "accent" },
+    { lane: "hook", start: 1.6, end: 2.0, label: "call", tone: "accent" },
+  ]}
+  ticks={[
+    { at: 0, label: "0h" },
+    { at: 1, label: "1h" },
+    { at: 2, label: "2h" },
+    { at: 3, label: "3h" },
+  ]}
+  caption="With interval_seconds at 3600, the first error calls the webhook and the next two inside that hour don't. The error at 1.6h calls it again, and the one at 2.1h, less than an hour later, doesn't."
+/>
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const alert = yield* Braintrust.ProjectAutomation("ErrorAlert", {
+  projectId: project.projectId,
+  name: "Errors",
+  description: "At most one call an hour",
+  config: {
+    event_type: "logs",
+    btql_filter: "error IS NOT NULL",
+    interval_seconds: 3600,
+    action: { type: "webhook", url: "https://hooks.example.com/braintrust" },
+  },
+});
+```
+
+The `action` can also be `slack`, with a workspace and channel, or `pagerduty`.
+
+## Delete old logs
+
+A retention rule deletes logs once they are older than `retention_days`:
+
+```typescript title="alchemy.run.ts"
+const retention = yield* Braintrust.ProjectAutomation("Retention", {
+  projectId: project.projectId,
+  config: {
+    event_type: "retention",
+    object_type: "project_logs",
+    retention_days: 30,
+  },
+});
+```
+
+Moving an automation to another project replaces it. Automations with a fixed `name` that already exist in the project are refused unless you adopt them.
+
+Exports to cloud storage use `event_type: "btql_export"`; every field of each kind is in the [API reference](/providers/braintrust/reference/project-automation).

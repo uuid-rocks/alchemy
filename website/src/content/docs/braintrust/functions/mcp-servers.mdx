@@ -1,0 +1,84 @@
+---
+title: MCP servers
+description: Register remote MCP servers in a Braintrust project, so prompts can use their tools.
+---
+
+import Tree from "../../../../components/diagrams/Tree.astro";
+
+A remote **MCP server** offers tools over HTTP, in the Model Context Protocol. Register one in a project, and prompts in it, and Braintrust's Loop assistant, can use its tools.
+
+Braintrust signs in to the server with OAuth, connected per user or shared for the project in the Braintrust UI. The API can't set those credentials, so your Stack declares the registration and someone connects it once in the UI.
+
+<Tree
+  nodes={[
+    { id: "org", label: "acme", type: "organization", icon: "brand:braintrust" },
+    {
+      id: "project", label: "support", type: "project", parent: "org", icon: "folder", colGap: 5.5,
+      areas: ["agent docs"],
+      phoneAreas: ["agent", "docs"],
+    },
+    { id: "agent", label: "agent", type: "prompt", parent: "project", icon: "message-square" },
+    { id: "docs", label: "Docs", type: "MCP server · OAuth", parent: "project", tone: "accent", icon: "plug" },
+    { id: "server", label: "mcp.example.com", type: "your MCP server", icon: "server" },
+  ]}
+  areas={["org", "server"]}
+  links={[
+    { from: "agent", to: "docs", label: "uses tools" },
+    { from: "docs", to: "server", label: "calls" },
+  ]}
+  caption="The project holds the server's registration, signed in with OAuth. The agent prompt uses its tools, and Braintrust calls your server for each one."
+/>
+
+## Register a server
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const docs = yield* Braintrust.McpServer("Docs", {
+  projectId: project.projectId,
+  url: "https://mcp.example.com/mcp",
+  description: "Product documentation search",
+});
+```
+
+A new path on the same origin updates the server in place. Moving `url` to another scheme, host or port, or the server to another project, replaces it. Deleting the project deletes its servers.
+
+## A URL that holds a credential
+
+Some servers take their key in the URL. Pass it as a `Redacted` value, and the `url` attribute stays `Redacted` too:
+
+```typescript title="alchemy.run.ts"
+const toolsUrl = yield* Config.Redacted("TOOLS_MCP_URL");
+const tools = yield* Braintrust.McpServer("Tools", {
+  projectId: project.projectId,
+  url: toolsUrl,
+});
+```
+
+## Use its tools from a prompt
+
+List the server in the prompt's `promptData.mcp`, by its id:
+
+```typescript title="alchemy.run.ts"
+const agent = yield* Braintrust.Prompt("Agent", {
+  projectId: project.projectId,
+  promptData: {
+    prompt: {
+      type: "chat",
+      messages: [{ role: "user", content: "{{input}}" }],
+    },
+    options: { model: "gpt-4o-mini" },
+    mcp: { docs: { type: "id", id: docs.mcpServerId } },
+  },
+});
+```
+
+Leave out `enabled_tools` to allow every tool the server offers, or list the ones the prompt may use.
+
+A token for a single call goes in the request's `mcp_auth` when you invoke the prompt or run an eval.
+
+## Use a server you didn't create
+
+```typescript title="alchemy.run.ts"
+const existing = Braintrust.Project.lookup({ name: "My Project" });
+const search = Braintrust.McpServer.lookup({ projectId: existing.projectId, name: "Docs" });
+```

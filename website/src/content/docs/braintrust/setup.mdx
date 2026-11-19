@@ -1,0 +1,61 @@
+---
+title: Setup
+description: Connect alchemy to your Braintrust organization with an API key or a service token.
+---
+
+import PackageManagers from "../../../components/PackageManagers.astro";
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org) 24.11.1+ or [Bun](https://bun.sh)
+- A Braintrust account: sign up at [braintrust.dev](https://www.braintrust.dev)
+
+## Install
+
+<PackageManagers add="@alchemy.run/braintrust" />
+
+Then add `Braintrust.providers()` next to your cloud's providers:
+
+```typescript
+// alchemy.run.ts
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+
+export default Alchemy.Stack(
+  "App",
+  {
+    providers: Layer.mergeAll(Cloudflare.providers(), Braintrust.providers()),
+    state: Alchemy.localState(),
+  },
+  Effect.void,
+);
+```
+
+## Choose a key
+
+Resources are created in the organization the key belongs to.
+
+- **Service token** (`bt-st-…`): create a service account and a token for it in your organization's settings. It acts as the service account. Use one if your Stack creates service tokens, or uses bindings, which create a token for each Worker or Function: Braintrust refuses to create service tokens with a user API key. For bindings, the service account also needs the `read_acls` permission on the organization (as the Owners group has), to read each host's grants.
+- **API key** (`sk-…`): create one under **Settings → API keys**. It acts as you, and is enough for a Stack of projects, datasets, prompts and access control.
+
+## Store it in a profile
+
+Add Braintrust to your profile and paste the key:
+
+<PackageManagers run="alchemy profile edit --add Braintrust" />
+
+It is saved under `~/.alchemy/credentials/<profile>/`. Leave the API URL empty unless you run a self-hosted data plane.
+
+## CI
+
+`BRAINTRUST_API_KEY`, set in the environment or in `.env`, is used instead of the profile wherever it's set, in CI or not. In CI (`CI=true`) there are no profiles, so set it there, and `BRAINTRUST_API_URL` for a self-hosted data plane.
+
+See [Profiles](/environments/profiles) for how credentials are stored and switched.
+
+## Next steps
+
+- [Organization and keys](/braintrust/access/organization): which key to deploy with, and one organization per environment.
+- [Projects](/braintrust/evals/projects): declare your first project.

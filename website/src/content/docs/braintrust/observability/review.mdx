@@ -1,0 +1,101 @@
+---
+title: Human review
+description: Declare the scores reviewers fill in and the tags they apply to Braintrust logs, experiments and datasets, and record your users' feedback from a Worker.
+---
+
+import Records from "../../../../components/diagrams/Records.astro";
+
+Automatic scorers miss things people catch. In **human review**, people read logged answers, experiment rows or dataset records in the Braintrust UI, and fill in **scores** that your project defines: a slider, a set of categories, or free-form text. They also apply **tags**, colored labels that you can filter on.
+
+Both are declared per project, so every reviewer sees the same scale.
+
+<Records
+  title="support · logs after review"
+  columns={["input", "Helpfulness", "Verdict", "tags"]}
+  rows={[
+    ["reset password", "0.9", "correct", ""],
+    ["cancel plan", "0.2", "wrong", "escalated"],
+    ["refund order", "0.6", "partially correct", ""],
+  ]}
+  query={{ label: "tags includes 'escalated'", rows: [1] }}
+  caption="Reviewers set a Helpfulness slider and a Verdict category on each logged answer, and tagged one escalated. Filtering on the tag finds the answer a person took over."
+/>
+
+## Scores reviewers fill in
+
+A slider score takes any value from 0 to 1:
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const helpfulness = yield* Braintrust.ProjectScore("Helpfulness", {
+  projectId: project.projectId,
+  name: "Helpfulness",
+  scoreType: "slider",
+});
+```
+
+A categorical score maps each choice to a value. With `destination: "expected"`, the reviewer's choice is written to the row's expected output:
+
+```typescript title="alchemy.run.ts"
+const verdict = yield* Braintrust.ProjectScore("Verdict", {
+  projectId: project.projectId,
+  name: "Verdict",
+  scoreType: "categorical",
+  categories: [
+    { name: "correct", value: 1 },
+    { name: "partially correct", value: 0.5 },
+    { name: "wrong", value: 0 },
+  ],
+  config: { destination: "expected" },
+});
+```
+
+`free-form` takes text. `weighted`, `minimum` and `maximum` compute a score from others. To hide other reviewers' scores until someone has given their own, set `blindReviews` on the [project](/braintrust/evals/projects#compare-experiments-your-way).
+
+## Tags
+
+```typescript title="alchemy.run.ts"
+const escalated = yield* Braintrust.ProjectTag("Escalated", {
+  projectId: project.projectId,
+  name: "escalated",
+  description: "Escalated to a human agent",
+  color: "#ef4444",
+});
+```
+
+Scores and tags with a fixed `name` that already exist in the project are refused unless you adopt them. Moving one to another project replaces it.
+
+## Feedback from your users
+
+`ProjectLogFeedback` lets a Worker add scores, a comment or tags to a row it logged earlier, by the row id the insert returned. The host gets its own service token with `update` on the project's logs only:
+
+```typescript title="src/feedback.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Effect from "effect/Effect";
+import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { Support } from "./evals.ts";
+
+export default class Feedback extends Cloudflare.Worker<Feedback>()(
+  "Feedback",
+  { main: import.meta.url },
+  Effect.gen(function* () {
+    const feedback = yield* Braintrust.ProjectLogFeedback(Support);
+    return {
+      fetch: Effect.gen(function* () {
+        const request = yield* HttpServerRequest;
+        const { logId, helpful, comment } = (yield* request.json) as {
+          logId: string;
+          helpful: boolean;
+          comment?: string;
+        };
+        yield* feedback({ feedback: [{ id: logId, scores: { Helpfulness: helpful ? 1 : 0 }, comment }] });
+        return HttpServerResponse.empty({ status: 204 });
+      }).pipe(Effect.orDie),
+    };
+  }).pipe(Effect.provide(Braintrust.ProjectLogFeedbackHttp)),
+) {}
+```
+
+`Support` is the project from [Logs and ingest keys](/braintrust/observability/logs#log-from-a-worker). `ExperimentFeedback` and `DatasetFeedback` do the same for an experiment's rows and a dataset's records.

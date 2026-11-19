@@ -1,0 +1,81 @@
+---
+title: Views and columns
+description: Save shared Braintrust views of a project's logs, add columns computed from each row, and embed your own page next to every span.
+---
+
+import Records from "../../../../components/diagrams/Records.astro";
+
+A project's logs page shows every row the same way until someone changes it. A **view** saves a filter, a sort and a column layout under a name, shared with everyone in the project. A **custom column** adds a column computed from each row, like the model a request used, from a field buried in its metadata.
+
+<Records
+  title="support · logs, Errors view"
+  columns={["input", "error", "Model"]}
+  rows={[
+    ["reset password", "", "gpt-4o-mini"],
+    ["cancel plan", "timeout", "gpt-4.1"],
+    ["refund order", "", "gpt-4o-mini"],
+    ["change email", "rate limited", "gpt-4.1"],
+  ]}
+  query={{ label: "error IS NOT NULL", rows: [1, 3] }}
+  caption="The Model column is computed from metadata.model on each row. The Errors view keeps only rows with an error, and shows that both failures came from the same model."
+/>
+
+## Save a view
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const errors = yield* Braintrust.View("Errors", {
+  objectType: "project",
+  objectId: project.projectId,
+  viewType: "logs",
+  name: "Errors",
+  viewData: { search: { filter: ["error IS NOT NULL"] } },
+  options: { columnOrder: ["input", "output", "error"] },
+});
+```
+
+`viewType` picks the page the view belongs to, like `logs` or `experiments`, and `viewData.search.filter` takes BTQL expressions. Moving a view to another object replaces it.
+
+## Add a computed column
+
+`expr` is evaluated on each row. `subtype` picks the table: `project_log` for the project's logs.
+
+```typescript title="alchemy.run.ts"
+const model = yield* Braintrust.CustomColumn("Model", {
+  objectType: "project",
+  objectId: project.projectId,
+  subtype: "project_log",
+  name: "Model",
+  expr: "metadata.model",
+});
+```
+
+The same column works on the list of experiments, with a `variant`:
+
+```typescript title="alchemy.run.ts"
+const commit = yield* Braintrust.CustomColumn("Commit", {
+  objectType: "project",
+  objectId: project.projectId,
+  subtype: "experiment",
+  variant: "experiment_list",
+  name: "Commit",
+  expr: "metadata.commit",
+});
+```
+
+Changing `objectType`, `objectId`, `subtype` or `variant` replaces the column.
+
+## Show your own page next to each span
+
+A **span iframe** embeds a page you host beside every span in the project's traces, to render span data your way, like a chat transcript:
+
+```typescript title="alchemy.run.ts"
+const viewer = yield* Braintrust.SpanIframe("Viewer", {
+  projectId: project.projectId,
+  name: "Conversation viewer",
+  url: "https://viewer.example.com/span",
+  postMessage: true,
+});
+```
+
+With `postMessage`, Braintrust sends the span's data to the page as a message instead of in the URL.

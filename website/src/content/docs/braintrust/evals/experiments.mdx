@@ -1,0 +1,152 @@
+---
+title: Experiments
+description: Declare a baseline Braintrust experiment that other runs compare with, and run evals from your app with the LaunchEval binding.
+---
+
+import Records from "../../../../components/diagrams/Records.astro";
+
+An **experiment** is one run of an eval. Braintrust runs a task, a prompt or your code, over each record of a dataset, scores every answer, and keeps the results. Scores are numbers from 0 to 1, one per scorer.
+
+The point of an experiment is the comparison. Braintrust lines up each row with the row for the same input in another experiment, so you see which answers got better and which got worse.
+
+<Records
+  title="candidate vs baseline · compared on input"
+  columns={["input", "baseline", "candidate"]}
+  rows={[
+    ["cancel plan", "1.00", "0.00"],
+    ["refund order", "0.00", "1.00"],
+    ["reset password", "1.00", "1.00"],
+  ]}
+  query={{ label: "regressed: candidate < baseline", rows: [0] }}
+  caption="Each row is one input, with its exact-answer score in both experiments. The candidate fixed refund order but broke cancel plan, which a single average of 0.67 in both would hide."
+/>
+
+The field rows are matched on is the project's `comparisonKey`, `input` by default. See [Projects](/braintrust/evals/projects#compare-experiments-your-way).
+
+## Declare a baseline
+
+The Braintrust SDK's `Eval` creates a new experiment on every run. Declare one in your Stack when it should outlive a run, like the baseline every other run compares with:
+
+```typescript title="alchemy.run.ts"
+const project = yield* Braintrust.Project("Support", {});
+const tickets = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+const baseline = yield* Braintrust.Experiment("Baseline", {
+  projectId: project.projectId,
+  datasetId: tickets.datasetId,
+  tags: ["baseline"],
+  metadata: { model: "gpt-4o-mini" },
+});
+```
+
+Moving an experiment to another project, or removing its `datasetId` or `parametersId`, replaces it, and the results logged to the old one are deleted with it. Braintrust merges `metadata` key by key, so a key you remove stays on the experiment with a `null` value.
+
+## Record what the baseline ran against
+
+To reproduce a run after the dataset or the code changes, pin the dataset version, the saved parameters and the commit:
+
+```typescript title="alchemy.run.ts"
+const parameters = Braintrust.Function.lookup({
+  projectId: project.projectId,
+  slug: "support-parameters",
+});
+const pinned = yield* Braintrust.Experiment("Pinned", {
+  projectId: project.projectId,
+  datasetId: tickets.datasetId,
+  datasetVersion: "1000198228304465130",
+  parametersId: parameters.functionId,
+  parametersVersion: parameters.version,
+  repoInfo: { commit: "4f2a9c1", branch: "main", dirty: false },
+});
+```
+
+`datasetVersion` is the dataset's `_xact_id` when the run read it. Saved parameters are pushed with `braintrust push` or made in the UI, so look them up. Every one of these updates in place, except that removing `parametersId` replaces the experiment. `repoInfo` merges key by key, like `metadata`.
+
+## Compare against the baseline
+
+`baseExperimentId` sets the experiment another one is compared with by default:
+
+```typescript title="alchemy.run.ts"
+const candidate = yield* Braintrust.Experiment("Candidate", {
+  projectId: project.projectId,
+  baseExperimentId: baseline.experimentId,
+});
+```
+
+To compare every run in the project with it, set `settings.baselineExperimentId` on the Project instead.
+
+## Run an eval from your app
+
+`LaunchEval` lets a Worker or Function run an eval in a project: Braintrust runs the task over the data, scores it, records a new experiment and returns its summary. The host gets its own service token, with `read` on the project, which covers the datasets, prompts and functions in it, and `create` on its experiments.
+
+This Worker finds its data and task by name: the `tickets` dataset and the `summarize-ticket` prompt in the `support-bot` project. Declare all three with those fixed names, and yield `Evals` in your Stack:
+
+```typescript title="src/evals.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Effect from "effect/Effect";
+
+export const Support = Braintrust.Project("Support", { name: "support-bot" });
+
+export const Evals = Effect.gen(function* () {
+  const project = yield* Support;
+  yield* Braintrust.Dataset("Tickets", { projectId: project.projectId, name: "tickets" });
+  yield* Braintrust.Prompt("Summarize", {
+    projectId: project.projectId,
+    slug: "summarize-ticket",
+    promptData: {
+      prompt: {
+        type: "chat",
+        messages: [
+          { role: "system", content: "Summarize the ticket in one sentence." },
+          { role: "user", content: "{{input}}" },
+        ],
+      },
+      options: { model: "gpt-4o-mini" },
+    },
+  });
+});
+```
+
+```typescript title="src/api.ts"
+import * as Braintrust from "@alchemy.run/braintrust";
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Effect from "effect/Effect";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { Support } from "./evals.ts";
+
+export default class Api extends Cloudflare.Worker<Api>()(
+  "Api",
+  { main: import.meta.url },
+  Effect.gen(function* () {
+    const launch = yield* Braintrust.LaunchEval(Support);
+    return {
+      fetch: Effect.gen(function* () {
+        const summary = yield* launch({
+          data: { project_name: "support-bot", dataset_name: "tickets" },
+          task: { project_name: "support-bot", slug: "summarize-ticket" },
+          scores: [{ global_function: "ExactMatch" }],
+        });
+        return yield* HttpServerResponse.json(summary.scores);
+      }).pipe(Effect.orDie),
+    };
+  }).pipe(Effect.provide(Braintrust.LaunchEvalHttp)),
+) {}
+```
+
+A task or scorer that calls a model also needs that model's AI secret bound with a proxy binding, like `Braintrust.ProxyChatCompletions(openai)`. See [Prompts](/braintrust/functions/prompts#call-a-model-through-the-proxy).
+
+To read or add to one experiment's results instead, bind `ReadExperiment`, `WriteExperiment` or `ReadWriteExperiment` to it: `fetch`, `summarize`, `insert` and `feedback`, with `read` or `update` on that experiment only.
+
+## Share an experiment
+
+A public experiment can be viewed by anyone with its link, inside or outside the organization:
+
+```typescript title="alchemy.run.ts"
+const showcase = yield* Braintrust.Experiment("Showcase", {
+  projectId: project.projectId,
+  public: true,
+});
+```
+
+## Next
+
+Write the task and scorers an experiment runs in [Prompts](/braintrust/functions/prompts) and [Functions and scorers](/braintrust/functions/functions).

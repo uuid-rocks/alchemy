@@ -50,6 +50,7 @@ function providersSidebarEntry() {
       { label: "Prisma", link: "/prisma" },
       { label: "Better Auth", link: "/better-auth" },
       { label: "Axiom", link: "/axiom" },
+      { label: "Braintrust", link: "/braintrust" },
       { label: "GitHub", link: "/github" },
       { label: "Stripe", link: "/stripe" },
       { label: "Docker", link: "/docker" },
@@ -1966,6 +1967,49 @@ export default defineConfig({
               ],
             },
             providerResourcesEntry("Axiom"),
+          ],
+        },
+        {
+          label: "Braintrust",
+          items: [
+            { label: "Overview", link: "/braintrust" },
+            { label: "What is Braintrust?", link: "/braintrust/what-is-braintrust" },
+            { label: "Setup", link: "/braintrust/setup" },
+            {
+              label: "Accounts & access",
+              items: [
+                { label: "Organization and keys", link: "/braintrust/access/organization" },
+                { label: "Roles, groups and ACLs", link: "/braintrust/access/access-control" },
+                { label: "AI keys and secrets", link: "/braintrust/access/secrets" },
+              ],
+            },
+            {
+              label: "Evals",
+              items: [
+                { label: "Projects", link: "/braintrust/evals/projects" },
+                { label: "Datasets and snapshots", link: "/braintrust/evals/datasets" },
+                { label: "Experiments", link: "/braintrust/evals/experiments" },
+              ],
+            },
+            {
+              label: "Prompts & functions",
+              items: [
+                { label: "Prompts", link: "/braintrust/functions/prompts" },
+                { label: "Functions and scorers", link: "/braintrust/functions/functions" },
+                { label: "Environments", link: "/braintrust/functions/environments" },
+                { label: "MCP servers", link: "/braintrust/functions/mcp-servers" },
+              ],
+            },
+            {
+              label: "Observability",
+              items: [
+                { label: "Logs and ingest keys", link: "/braintrust/observability/logs" },
+                { label: "Human review", link: "/braintrust/observability/review" },
+                { label: "Views and columns", link: "/braintrust/observability/views" },
+                { label: "Automations", link: "/braintrust/observability/automations" },
+              ],
+            },
+            providerResourcesEntry("Braintrust"),
           ],
         },
         {
