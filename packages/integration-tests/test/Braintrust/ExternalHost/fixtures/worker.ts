@@ -65,6 +65,27 @@ export default class BraintrustWorker extends Cloudflare.Worker<BraintrustWorker
     const experimentWriter = yield* Braintrust.WriteExperiment(boundExperiment);
     const restore = yield* Braintrust.RestoreDataset(boundDataset);
     const invoke = yield* Braintrust.InvokeFunction(echo);
+    // One binding per operation, each called by its own route below.
+    const insertLogs = yield* Braintrust.InsertProjectLogs(project);
+    const fetchLogs = yield* Braintrust.FetchProjectLogs(project);
+    const logFeedback = yield* Braintrust.ProjectLogFeedback(project);
+    const readLogs = yield* Braintrust.ReadProjectLogs(project);
+    const insertExperiment = yield* Braintrust.InsertExperimentEvents(boundExperiment);
+    const fetchExperiment = yield* Braintrust.FetchExperimentEvents(boundExperiment);
+    const experimentFeedback = yield* Braintrust.ExperimentFeedback(boundExperiment);
+    const summarizeExperiment = yield* Braintrust.SummarizeExperiment(boundExperiment);
+    const readWriteExperiment = yield* Braintrust.ReadWriteExperiment(boundExperiment);
+    const insertDataset = yield* Braintrust.InsertDatasetEvents(boundDataset);
+    const fetchDataset = yield* Braintrust.FetchDatasetEvents(boundDataset);
+    const datasetFeedback = yield* Braintrust.DatasetFeedback(boundDataset);
+    const summarizeDataset = yield* Braintrust.SummarizeDataset(boundDataset);
+    const previewRestore = yield* Braintrust.PreviewDatasetRestore(boundDataset);
+    const readDataset = yield* Braintrust.ReadDataset(boundDataset);
+    const writeDataset = yield* Braintrust.WriteDataset(boundDataset);
+    const complete = yield* Braintrust.ProxyCompletions(secret);
+    const embed = yield* Braintrust.ProxyEmbeddings(secret);
+    const auto = yield* Braintrust.ProxyAuto(secret);
+    const proxy = yield* Braintrust.ProxyRequest(secret);
 
     const respond = (effect: Effect.Effect<unknown, unknown, RuntimeContext>) =>
       effect.pipe(
@@ -74,10 +95,21 @@ export default class BraintrustWorker extends Cloudflare.Worker<BraintrustWorker
         ),
       );
 
+    // The OpenAI secret is fake, so a call that reaches OpenAI fails; the
+    // route reports the failure for the test to check where it came from.
+    const reached = <A, E extends { readonly _tag: string; readonly message?: string }>(
+      call: Effect.Effect<A, E, RuntimeContext>,
+    ) =>
+      call.pipe(
+        Effect.flip,
+        Effect.map((error) => ({ tag: error._tag, message: String(error.message ?? "") })),
+      );
+
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
         const url = new URL(request.url, "http://worker");
+        const id = url.searchParams.get("id") ?? "";
         switch (url.pathname) {
           case "/logs":
             return yield* respond(logs.fetch({ limit: 10 }));
@@ -139,6 +171,69 @@ export default class BraintrustWorker extends Cloudflare.Worker<BraintrustWorker
                 Effect.map((error) => ({ tag: error._tag, message: String(error.message ?? "") })),
               ),
             );
+          case "/InsertProjectLogs":
+            return yield* respond(insertLogs({ events: [{ id, input: "q" }] }));
+          case "/FetchProjectLogs":
+            return yield* respond(fetchLogs());
+          case "/ProjectLogFeedback":
+            return yield* respond(logFeedback({ feedback: [{ id, scores: { helpful: 1 } }] }));
+          case "/ReadProjectLogs":
+            return yield* respond(readLogs.fetch());
+          case "/InsertExperimentEvents":
+            return yield* respond(insertExperiment({ events: [{ id, input: "q", output: "a" }] }));
+          case "/FetchExperimentEvents":
+            return yield* respond(fetchExperiment());
+          case "/ExperimentFeedback":
+            return yield* respond(experimentFeedback({ feedback: [{ id, comment: "checked" }] }));
+          case "/SummarizeExperiment":
+            return yield* respond(summarizeExperiment({ summarize_scores: true }));
+          case "/ReadWriteExperiment":
+            return yield* respond(
+              Effect.all({
+                inserted: readWriteExperiment.insert({ events: [{ id, input: "q", output: "a" }] }),
+                page: readWriteExperiment.fetch(),
+              }),
+            );
+          case "/InsertDatasetEvents":
+            return yield* respond(insertDataset({ events: [{ id, input: "q" }] }));
+          case "/FetchDatasetEvents":
+            return yield* respond(fetchDataset());
+          case "/DatasetFeedback":
+            return yield* respond(datasetFeedback({ feedback: [{ id, comment: "checked" }] }));
+          case "/SummarizeDataset":
+            return yield* respond(summarizeDataset({ summarize_data: true }));
+          case "/PreviewDatasetRestore":
+            return yield* respond(
+              previewRestore({ version: url.searchParams.get("version") ?? "" }),
+            );
+          case "/ReadDataset":
+            return yield* respond(
+              Effect.all({
+                page: readDataset.fetch(),
+                summary: readDataset.summarize({ summarize_data: true }),
+              }),
+            );
+          case "/WriteDataset":
+            return yield* respond(
+              Effect.all({
+                inserted: writeDataset.insert({ events: [{ id, input: "q", expected: "a" }] }),
+                feedback: writeDataset.feedback({ feedback: [{ id, comment: "checked" }] }),
+              }),
+            );
+          case "/ProxyCompletions":
+            return yield* respond(
+              reached(complete({ model: "gpt-3.5-turbo-instruct", prompt: "hi" })),
+            );
+          case "/ProxyEmbeddings":
+            return yield* respond(reached(embed({ model: "text-embedding-3-small", input: "hi" })));
+          case "/ProxyAuto":
+            return yield* respond(
+              reached(auto({ model: "gpt-4.1-nano", messages: [{ role: "user", content: "hi" }] })),
+            );
+          case "/ProxyRequest":
+            return yield* respond(
+              reached(proxy({ path: "responses", model: "gpt-4.1-mini", input: "hi" })),
+            );
           default:
             return HttpServerResponse.text("ok");
         }
@@ -156,6 +251,26 @@ export default class BraintrustWorker extends Cloudflare.Worker<BraintrustWorker
         Braintrust.WriteExperimentHttp,
         Braintrust.RestoreDatasetHttp,
         Braintrust.InvokeFunctionHttp,
+        Braintrust.InsertProjectLogsHttp,
+        Braintrust.FetchProjectLogsHttp,
+        Braintrust.ProjectLogFeedbackHttp,
+        Braintrust.ReadProjectLogsHttp,
+        Braintrust.InsertExperimentEventsHttp,
+        Braintrust.FetchExperimentEventsHttp,
+        Braintrust.ExperimentFeedbackHttp,
+        Braintrust.SummarizeExperimentHttp,
+        Braintrust.ReadWriteExperimentHttp,
+        Braintrust.InsertDatasetEventsHttp,
+        Braintrust.FetchDatasetEventsHttp,
+        Braintrust.DatasetFeedbackHttp,
+        Braintrust.SummarizeDatasetHttp,
+        Braintrust.PreviewDatasetRestoreHttp,
+        Braintrust.ReadDatasetHttp,
+        Braintrust.WriteDatasetHttp,
+        Braintrust.ProxyCompletionsHttp,
+        Braintrust.ProxyEmbeddingsHttp,
+        Braintrust.ProxyAutoHttp,
+        Braintrust.ProxyRequestHttp,
       ),
     ),
   ),

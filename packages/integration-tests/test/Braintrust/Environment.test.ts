@@ -99,16 +99,7 @@ test.provider(
   (stack) =>
     Effect.gen(function* () {
       yield* stack.destroy();
-      // A taken slug fails the create, so a leftover from a crashed run
-      // (this test's own slug) is deleted first.
       const slug = testName("alchemy-test-bt-foreign-env");
-      const { objects } = yield* braintrust.listEnvironments({});
-      const leftover = objects.find((environment) => environment.slug === slug);
-      if (leftover && !leftover.deleted_at) {
-        yield* braintrust.deleteEnvironment({ environment_id: leftover.id });
-        yield* expectEnvironmentGone(leftover.id);
-      }
-
       const foreign = yield* braintrust.createEnvironment({ name: "Foreign", slug });
 
       const app = (allow: boolean) =>

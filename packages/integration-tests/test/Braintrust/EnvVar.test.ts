@@ -248,7 +248,7 @@ test.provider(
       // Braintrust answers a list scoped to a missing project with 403.
       const lookup = Braintrust.EnvVar.lookup({
         objectType: "project",
-        objectId: crypto.randomUUID(),
+        objectId: "00000000-0000-4000-8000-000000000000",
         name: "ALCHEMY_TEST_MISSING",
       });
       const probe = Core.scratchStack(

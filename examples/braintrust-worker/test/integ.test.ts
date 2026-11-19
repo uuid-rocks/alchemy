@@ -91,7 +91,7 @@ test(
             : Effect.flatMap(response.text, (body) => Effect.fail(`${response.status} ${body}`)),
         ),
         Effect.map((body) => body as Triage),
-        Effect.retry({ schedule: Schedule.spaced("3 seconds"), times: 20 }),
+        Effect.retry({ schedule: Schedule.spaced("6 seconds"), times: 10 }),
       );
 
     const billing = yield* answer("I was charged twice on my last invoice");

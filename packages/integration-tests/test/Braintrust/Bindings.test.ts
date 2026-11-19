@@ -232,7 +232,9 @@ const host = <A, E, R>(id: string, init: Effect.Effect<A, E, R>) =>
 /**
  * Runs a host's init in the runtime phase over `env`, the env its deploy
  * bound, and hands `use` the clients. Every call needs the host's
- * `RuntimeContext`, as inside a deployed host.
+ * `RuntimeContext`, as inside a deployed host. Setting `__ALCHEMY_RUNTIME__`
+ * is seen by every test in the process, so a test that calls this runs
+ * `exclusive`.
  */
 const inHost = <C, A, E, R>(
   env: Env,
@@ -478,98 +480,132 @@ describe("Braintrust bindings", { tags }, () => {
   });
 
   describe("ReadProjectLogs", () => {
-    test(
+    test.provider(
       "fetches the project's logs, and is refused another project's and every write",
-      Effect.gen(function* () {
-        const { ids, reader } = deployed;
-        const page = yield* inHost(reader, readerInit(bound), ({ logs }) => settled(logs.fetch()));
-        expect(page.events.every((event) => event.project_id === ids.projectId)).toBe(true);
-        expect(
-          yield* refusal(
-            reader,
-            braintrust.fetchProjectLogEvents({ project_id: ids.otherProjectId }),
-          ),
-        ).toBe("NotFoundOrForbidden");
-        expect(
-          yield* refusal(
-            reader,
-            braintrust.insertProjectLogEvents({
-              project_id: ids.projectId,
-              events: [{ input: "x" }],
-            }),
-          ),
-        ).toBe("NotFoundOrForbidden");
-      }),
-      { tags, timeout: 120_000 },
+      (_stack) =>
+        Effect.gen(function* () {
+          const { ids, reader } = deployed;
+          // The reader can't write, so the deployer logs the row it reads back.
+          yield* braintrust.insertProjectLogEvents({
+            project_id: ids.projectId,
+            events: [{ id: "read-logs", input: "q" }],
+          });
+          const page = yield* inHost(reader, readerInit(bound), ({ logs }) =>
+            readBack(settled(logs.fetch()), "read-logs"),
+          );
+          expect(page.events.map((event) => event.id)).toContain("read-logs");
+          expect(page.events.every((event) => event.project_id === ids.projectId)).toBe(true);
+          expect(
+            yield* refusal(
+              reader,
+              braintrust.fetchProjectLogEvents({ project_id: ids.otherProjectId }),
+            ),
+          ).toBe("NotFoundOrForbidden");
+          expect(
+            yield* refusal(
+              reader,
+              braintrust.insertProjectLogEvents({
+                project_id: ids.projectId,
+                events: [{ input: "x" }],
+              }),
+            ),
+          ).toBe("NotFoundOrForbidden");
+        }),
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
   describe("ReadExperiment", () => {
-    test(
+    test.provider(
       "fetches and summarizes the experiment, and is refused another experiment",
-      Effect.gen(function* () {
-        const { ids, reader } = deployed;
-        const { page, summary } = yield* inHost(reader, readerInit(bound), ({ experiment }) =>
-          Effect.all({
-            page: settled(experiment.fetch()),
-            summary: settled(experiment.summarize({ summarize_scores: true })),
-          }),
-        );
-        expect(page.events.every((event) => event.experiment_id === ids.experimentId)).toBe(true);
-        expect(summary.experiment_name).toBe(ids.experimentName);
-        expect(
-          yield* refusal(
-            reader,
-            braintrust.fetchExperimentEvents({ experiment_id: ids.otherExperimentId }),
-          ),
-        ).toBe("NotFoundOrForbidden");
-        expect(
-          yield* refusal(
-            reader,
-            braintrust.insertExperimentEvents({
-              experiment_id: ids.experimentId,
-              events: [{ input: "x" }],
+      (_stack) =>
+        Effect.gen(function* () {
+          const { ids, reader } = deployed;
+          yield* braintrust.insertExperimentEvents({
+            experiment_id: ids.experimentId,
+            events: [{ id: "read-experiment", input: "q" }],
+          });
+          const { page, summary } = yield* inHost(reader, readerInit(bound), ({ experiment }) =>
+            Effect.all({
+              page: readBack(settled(experiment.fetch()), "read-experiment"),
+              summary: settled(experiment.summarize({ summarize_scores: true })),
             }),
-          ),
-        ).toBe("NotFoundOrForbidden");
-      }),
-      { tags, timeout: 120_000 },
+          );
+          expect(page.events.map((event) => event.id)).toContain("read-experiment");
+          expect(page.events.every((event) => event.experiment_id === ids.experimentId)).toBe(true);
+          expect(summary.experiment_name).toBe(ids.experimentName);
+          expect(
+            yield* refusal(
+              reader,
+              braintrust.fetchExperimentEvents({ experiment_id: ids.otherExperimentId }),
+            ),
+          ).toBe("NotFoundOrForbidden");
+          expect(
+            yield* refusal(
+              reader,
+              braintrust.insertExperimentEvents({
+                experiment_id: ids.experimentId,
+                events: [{ input: "x" }],
+              }),
+            ),
+          ).toBe("NotFoundOrForbidden");
+        }),
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
   describe("ReadDataset", () => {
-    test(
+    test.provider(
       "fetches, summarizes and previews a restore of the dataset, and is refused another dataset and a restore",
-      Effect.gen(function* () {
-        const { ids, reader } = deployed;
-        const result = yield* inHost(reader, readerInit(bound), ({ dataset }) =>
-          Effect.all({
-            page: settled(dataset.fetch()),
-            summary: settled(dataset.summarize({ summarize_data: true })),
-          }),
-        );
-        // Restoring the dataset to its current version changes nothing.
-        const current = result.page.events
-          .map((event) => event._xact_id)
-          .sort()
-          .at(-1);
-        const preview = yield* inHost(reader, readerInit(bound), ({ dataset }) =>
-          dataset.previewRestore({ version: current ?? "0" }),
-        );
-        expect(result.page.events.every((event) => event.dataset_id === ids.datasetId)).toBe(true);
-        expect(result.summary.data_summary?.total_records).toBe(result.page.events.length);
-        expect(preview).toEqual({ rows_to_restore: 0, rows_to_delete: 0 });
-        expect(
-          yield* refusal(reader, braintrust.fetchDatasetEvents({ dataset_id: ids.otherDatasetId })),
-        ).toBe("NotFoundOrForbidden");
-        expect(
-          yield* refusal(
-            reader,
-            braintrust.restoreDataset({ dataset_id: ids.datasetId, version: "1000192345678901" }),
-          ),
-        ).toBe("NotFoundOrForbidden");
-      }),
-      { tags, timeout: 120_000 },
+      (_stack) =>
+        Effect.gen(function* () {
+          const { ids, reader } = deployed;
+          yield* braintrust.insertDatasetEvents({
+            dataset_id: ids.datasetId,
+            events: [{ id: "read-dataset", input: "q" }],
+          });
+          const result = yield* inHost(reader, readerInit(bound), ({ dataset }) =>
+            Effect.gen(function* () {
+              const page = yield* readBack(settled(dataset.fetch()), "read-dataset");
+              // The summary counts a new record a moment after a fetch returns it.
+              const summary = yield* settled(dataset.summarize({ summarize_data: true })).pipe(
+                Effect.repeat({
+                  until: (s) => s.data_summary?.total_records === page.events.length,
+                  schedule: Schedule.spaced("2 seconds"),
+                  times: 10,
+                }),
+              );
+              return { page, summary };
+            }),
+          );
+          // Restoring the dataset to its current version changes nothing.
+          const current = result.page.events
+            .map((event) => event._xact_id)
+            .sort()
+            .at(-1);
+          const preview = yield* inHost(reader, readerInit(bound), ({ dataset }) =>
+            dataset.previewRestore({ version: current ?? "0" }),
+          );
+          expect(result.page.events.map((event) => event.id)).toContain("read-dataset");
+          expect(result.page.events.every((event) => event.dataset_id === ids.datasetId)).toBe(
+            true,
+          );
+          expect(result.summary.data_summary?.total_records).toBe(result.page.events.length);
+          expect(preview).toEqual({ rows_to_restore: 0, rows_to_delete: 0 });
+          expect(
+            yield* refusal(
+              reader,
+              braintrust.fetchDatasetEvents({ dataset_id: ids.otherDatasetId }),
+            ),
+          ).toBe("NotFoundOrForbidden");
+          expect(
+            yield* refusal(
+              reader,
+              braintrust.restoreDataset({ dataset_id: ids.datasetId, version: "1000192345678901" }),
+            ),
+          ).toBe("NotFoundOrForbidden");
+        }),
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -586,7 +622,7 @@ describe("Braintrust bindings", { tags }, () => {
           yield* refusal(writer, braintrust.fetchDatasetEvents({ dataset_id: ids.datasetId })),
         ).toBe("NotFoundOrForbidden");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
 
     test(
@@ -607,7 +643,7 @@ describe("Braintrust bindings", { tags }, () => {
         expect(inserted.row_ids).toEqual(["write-dataset"]);
         expect(feedback.status).toBe("success");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -624,7 +660,7 @@ describe("Braintrust bindings", { tags }, () => {
           yield* refusal(writer, braintrust.fetchProjectLogEvents({ project_id: ids.projectId })),
         ).toBe("NotFoundOrForbidden");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
 
     test(
@@ -645,7 +681,7 @@ describe("Braintrust bindings", { tags }, () => {
         expect(inserted.row_ids).toEqual(["write-logs"]);
         expect(feedback.status).toBe("success");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -665,7 +701,7 @@ describe("Braintrust bindings", { tags }, () => {
           ),
         ).toBe("NotFoundOrForbidden");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
 
     test(
@@ -688,7 +724,7 @@ describe("Braintrust bindings", { tags }, () => {
         expect(inserted.row_ids).toEqual(["write-experiment"]);
         expect(feedback.status).toBe("success");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -704,7 +740,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expect(events.map((event) => event.id)).toContain("rw-logs");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -722,7 +758,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expect(events.map((event) => event.id)).toContain("rw-experiment");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -740,7 +776,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expect(events.map((event) => event.id)).toContain("rw-dataset");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -759,7 +795,7 @@ describe("Braintrust bindings", { tags }, () => {
           true,
         );
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -772,7 +808,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expect(inserted.row_ids).toEqual(["insert-logs"]);
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -788,7 +824,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expect(result.status).toBe("success");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -812,7 +848,7 @@ describe("Braintrust bindings", { tags }, () => {
           page.events.every((event) => event.experiment_id === deployed.ids.experimentId),
         ).toBe(true);
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -826,7 +862,7 @@ describe("Braintrust bindings", { tags }, () => {
         expect(summary.experiment_name).toBe(deployed.ids.experimentName);
         expect(summary.experiment_url).toContain("/experiments/");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -841,7 +877,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expect(inserted.row_ids).toEqual(["insert-experiment"]);
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -864,7 +900,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expect(result.status).toBe("success");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -886,7 +922,7 @@ describe("Braintrust bindings", { tags }, () => {
           true,
         );
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -897,15 +933,24 @@ describe("Braintrust bindings", { tags }, () => {
         const { page, summary } = yield* inHost(
           deployed.ops,
           opsInit(bound),
-          ({ fetchDataset, summarizeDataset }) =>
-            Effect.all({
-              page: settled(fetchDataset()),
-              summary: settled(summarizeDataset({ summarize_data: true })),
+          ({ insertDataset, fetchDataset, summarizeDataset }) =>
+            Effect.gen(function* () {
+              yield* settled(insertDataset({ events: [{ id: "summarize-dataset", input: "q" }] }));
+              const page = yield* readBack(fetchDataset(), "summarize-dataset");
+              const summary = yield* settled(summarizeDataset({ summarize_data: true })).pipe(
+                Effect.repeat({
+                  until: (s) => s.data_summary?.total_records === page.events.length,
+                  schedule: Schedule.spaced("2 seconds"),
+                  times: 10,
+                }),
+              );
+              return { page, summary };
             }),
         );
+        expect(page.events.map((event) => event.id)).toContain("summarize-dataset");
         expect(summary.data_summary?.total_records).toBe(page.events.length);
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -925,7 +970,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expect(preview).toEqual({ rows_to_restore: 0, rows_to_delete: 1 });
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -945,8 +990,8 @@ describe("Braintrust bindings", { tags }, () => {
               const restored = yield* restore({ version }).pipe(
                 Effect.repeat({
                   until: (result) => result.rows_deleted > 0,
-                  schedule: Schedule.spaced("3 seconds"),
-                  times: 30,
+                  schedule: Schedule.spaced("5 seconds"),
+                  times: 10,
                 }),
               );
               return { restored, after: yield* fetchDataset() };
@@ -957,7 +1002,7 @@ describe("Braintrust bindings", { tags }, () => {
         expect(ids).toContain("restore-kept");
         expect(ids).not.toContain("restore-dropped");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -970,7 +1015,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expect(inserted.row_ids).toEqual(["insert-dataset"]);
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -991,7 +1036,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expect(result.status).toBe("success");
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -1013,7 +1058,7 @@ describe("Braintrust bindings", { tags }, () => {
         expect(summary.projectUrl).toContain("/p/");
         expect(summary.experimentUrl).toContain("/experiments/");
       }),
-      { tags, timeout: 180_000 },
+      { tags, timeout: 180_000, exclusive: true },
     );
   });
 
@@ -1062,7 +1107,7 @@ describe("Braintrust bindings", { tags }, () => {
           expect(other.tag).toBe("NotFound");
           expect(other.message).toContain("No provider found");
         }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -1075,7 +1120,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expectReachedProvider(reached);
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -1088,7 +1133,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expectReachedProvider(reached);
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -1101,7 +1146,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expectReachedProvider(reached);
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 
@@ -1114,7 +1159,7 @@ describe("Braintrust bindings", { tags }, () => {
         );
         expectReachedProvider(reached);
       }),
-      { tags, timeout: 120_000 },
+      { tags, timeout: 120_000, exclusive: true },
     );
   });
 });
@@ -1149,7 +1194,7 @@ describe("InvokeFunction", { tags }, () => {
         expect(output).toEqual({ echo: "hi" });
         yield* stack.destroy();
       }),
-    { tags, timeout: 300_000 },
+    { tags, timeout: 300_000, exclusive: true },
   );
 });
 

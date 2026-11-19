@@ -86,7 +86,7 @@ test.provider(
       yield* expectTokenGone(token.serviceTokenId);
       // Braintrust caches accepted keys for a while after revocation.
       const stillAccepted = yield* accepts(token.key).pipe(
-        Effect.repeat({ schedule: Schedule.spaced("5 seconds"), until: (ok) => !ok, times: 18 }),
+        Effect.repeat({ schedule: Schedule.spaced("6 seconds"), until: (ok) => !ok, times: 10 }),
       );
       expect(stillAccepted).toBe(false);
 

@@ -258,7 +258,12 @@ test.provider(
         });
 
       const linked = yield* stack.deploy(program("A", true));
-      expect(linked.datasetId).toBeTruthy();
+      // The linked dataset is project A's, and Braintrust runs the experiment against it.
+      const dataset = yield* braintrust.getDataset({ dataset_id: linked.datasetId! });
+      expect(dataset.project_id).toBe(linked.projectId);
+      yield* eventually(getExperiment(linked.experimentId), (observed) => {
+        expect(observed.dataset_id).toBe(linked.datasetId);
+      });
 
       // Apply doesn't diff again, so the plan must already replace.
       expect((yield* stack.plan(program("A", false, "Label"))).resources.Moving.action).toBe(
