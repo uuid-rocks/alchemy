@@ -3,6 +3,7 @@ import { expect } from "@alchemy.run/test";
 import * as Test from "@alchemy.run/test/Alchemy";
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
 import { adopt, OwnedBySomeoneElse } from "alchemy/AdoptPolicy";
+import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
@@ -89,4 +90,48 @@ test.provider(
       yield* expectNotMember(address);
     }),
   { tags, exclusive: "braintrust:org-members", timeout: 120_000 },
+);
+
+test.provider(
+  "an email resolved at apply to a member invited elsewhere is refused unless adopted",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+      const managed = email("alchemy-test-bt-member-managed");
+      const address = email("alchemy-test-bt-member-joined");
+
+      const member = yield* stack.deploy(
+        Braintrust.OrganizationMember("Member", { email: managed }),
+      );
+
+      yield* braintrust.updateOrganizationMembers({
+        invite_users: { emails: [address], send_invite_emails: false },
+      });
+      const [joinedId] = yield* membersWithEmail(address);
+      expect(joinedId).toMatch(/^[0-9a-f-]{36}$/);
+
+      // The project is new in this deploy, so the email is unknown until
+      // apply and the plan is an update, which the engine doesn't check for
+      // ownership.
+      const app = (allow: boolean) =>
+        Effect.gen(function* () {
+          const project = yield* Braintrust.Project("Label", {});
+          return yield* Braintrust.OrganizationMember("Member", {
+            email: Output.map(project.projectId, () => address),
+          }).pipe(adopt(allow));
+        });
+
+      const refused = yield* stack.deploy(app(false)).pipe(Effect.result);
+      expect(Result.isFailure(refused)).toBe(true);
+      if (Result.isFailure(refused)) expect(refused.failure).toBeInstanceOf(OwnedBySomeoneElse);
+      expect(yield* membersWithEmail(managed)).toEqual([member.userId]);
+
+      const adopted = yield* stack.deploy(app(true));
+      expect(adopted.userId).toBe(joinedId);
+      yield* expectNotMember(managed);
+
+      yield* stack.destroy();
+      yield* expectNotMember(address);
+    }),
+  { tags, exclusive: "braintrust:org-members", timeout: 180_000 },
 );

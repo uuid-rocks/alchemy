@@ -1,8 +1,10 @@
 import * as braintrust from "@distilled.cloud/braintrust/braintrust";
-import { unownedUnlessPrevious } from "alchemy/AdoptPolicy";
+import { AdoptPolicy, OwnedBySomeoneElse, unownedUnlessPrevious } from "alchemy/AdoptPolicy";
+import { AlchemyContext } from "alchemy/AlchemyContext";
 import { isResolved } from "alchemy/Diff";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
+import { Stack } from "alchemy/Stack";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -154,12 +156,34 @@ export const OrganizationMemberProvider = () =>
           // have joined some other way.
           return unownedUnlessPrevious(toAttributes(user, olds.email), previous, "userId");
         }),
-        reconcile: Effect.fn(function* ({ news, output, session }) {
+        reconcile: Effect.fn(function* ({ id, fqn, news, output, session }) {
           // Observe — by id once we have one, else by email.
           const cached = output ? yield* getById(output.userId) : undefined;
           let user =
             (cached?.email?.toLowerCase() === news.email.toLowerCase() ? cached : undefined) ??
             (yield* findByEmail(news.email));
+
+          // An email that resolves only at apply plans an update, which the
+          // engine doesn't check for ownership, so a person found here may
+          // have joined some other way. Refuse before removing anyone.
+          if (user && output && output.userId !== user.id) {
+            const stack = yield* Stack;
+            const adopt =
+              stack.resources[fqn]?.Adopt ??
+              Option.getOrUndefined(yield* Effect.serviceOption(AdoptPolicy)) ??
+              (yield* AlchemyContext).adopt;
+            if (!adopt) {
+              return yield* new OwnedBySomeoneElse({
+                message:
+                  `Cannot adopt Braintrust member '${news.email}': they are already in ` +
+                  "the organization. Re-run with `--adopt` (or wrap the effect in " +
+                  "`adopt(true)`) to take them over.",
+                resourceType: OrganizationMember.Type,
+                logicalId: id,
+                physicalName: news.email,
+              });
+            }
+          }
 
           // Ensure — inviting someone already in the organization adds no one.
           if (!user) {
