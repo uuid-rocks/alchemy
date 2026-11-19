@@ -943,7 +943,7 @@ describe("Braintrust bindings", { tags }, () => {
             Effect.gen(function* () {
               yield* settled(insertDataset({ events: [{ id: "summarize-dataset", input: "q" }] }));
               const page = yield* readBack(fetchDataset(), "summarize-dataset");
-              const summary = yield* settled(summarizeDataset({ summarize_data: true })).pipe(
+              const summary = yield* summarizeDataset({ summarize_data: true }).pipe(
                 Effect.repeat({
                   until: (s) => s.data_summary?.total_records === page.events.length,
                   schedule: Schedule.spaced("2 seconds"),

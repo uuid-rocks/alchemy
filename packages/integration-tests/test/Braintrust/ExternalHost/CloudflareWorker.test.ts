@@ -24,8 +24,8 @@ let experimentName: string;
 // real failure shows Braintrust's error.
 const call = (route: string, until: (result: any) => boolean = () => true) =>
   HttpClient.get(`${url}${route}`).pipe(
-    Effect.timeout("15 seconds"),
     Effect.flatMap((response) => response.json),
+    Effect.timeout("15 seconds"),
     Effect.map((body) => body as Body),
     Effect.flatMap((body) =>
       body?.ok && until(body.result) ? Effect.succeed(body) : Effect.fail(body),
