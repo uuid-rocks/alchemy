@@ -117,8 +117,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   { main: import.meta.url },
   Effect.gen(function* () {
-    const project = yield* Support;
-    const launch = yield* Braintrust.LaunchEval(project);
+    const launch = yield* Braintrust.LaunchEval(Support);
     return {
       fetch: Effect.gen(function* () {
         const summary = yield* launch({

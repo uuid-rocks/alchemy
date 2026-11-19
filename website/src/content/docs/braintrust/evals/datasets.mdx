@@ -82,8 +82,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   { main: import.meta.url },
   Effect.gen(function* () {
-    const dataset = yield* Tickets;
-    const tickets = yield* Braintrust.ReadWriteDataset(dataset);
+    const tickets = yield* Braintrust.ReadWriteDataset(Tickets);
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;

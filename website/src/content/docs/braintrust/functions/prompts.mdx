@@ -120,8 +120,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   { main: import.meta.url },
   Effect.gen(function* () {
-    const openai = yield* OpenAI;
-    const chat = yield* Braintrust.ProxyChatCompletions(openai);
+    const chat = yield* Braintrust.ProxyChatCompletions(OpenAI);
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;

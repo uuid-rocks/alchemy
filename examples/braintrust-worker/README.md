@@ -28,6 +28,8 @@ The Worker can't read the logs or the dataset back, and can't touch any other pr
 
 ## Deploy
 
+The Worker's bindings create its own Braintrust service account and token, so deploy with a service token (`bt-st-…`) that holds `read_acls` on the organization. Braintrust won't create service tokens for a user key (`sk-…`).
+
 Set `BRAINTRUST_API_KEY` (or pick Braintrust in `alchemy profile`) and your Cloudflare credentials, then from the repository root:
 
 ```sh
