@@ -11,9 +11,12 @@ import { ProxyCompletions, type ProxyCompletionsClient } from "./ProxyCompletion
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
+ * import * as Config from "effect/Config";
+ *
  * Effect.gen(function* () {
  *   const openai = yield* Braintrust.AiSecret("OpenAI", {
  *     type: "openai",
+ *     // No `yield*`, so the key stays in Braintrust, not the Worker.
  *     secret: Config.Redacted("OPENAI_API_KEY"),
  *   });
  *   const complete = yield* Braintrust.ProxyCompletions(openai);

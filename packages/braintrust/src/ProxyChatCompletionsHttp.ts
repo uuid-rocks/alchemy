@@ -16,7 +16,8 @@ import { ProxyChatCompletions, type ProxyChatCompletionsClient } from "./ProxyCh
  * Effect.gen(function* () {
  *   const openai = yield* Braintrust.AiSecret("OpenAI", {
  *     type: "openai",
- *     secret: yield* Config.Redacted("OPENAI_API_KEY"),
+ *     // No `yield*`, so the key stays in Braintrust, not the Worker.
+ *     secret: Config.Redacted("OPENAI_API_KEY"),
  *   });
  *   const chat = yield* Braintrust.ProxyChatCompletions(openai);
  *   // ...

@@ -34,12 +34,15 @@ export type ProxyAutoClient = (
  * ### Calling a model
  * **Example:** ProxyAuto from a Worker
  * ```typescript
+ * import * as Config from "effect/Config";
+ *
  * export default class Api extends Cloudflare.Worker<Api>()(
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
  *     const openai = yield* Braintrust.AiSecret("OpenAI", {
  *       type: "openai",
+ *       // No `yield*`, so the key stays in Braintrust, not the Worker.
  *       secret: Config.Redacted("OPENAI_API_KEY"),
  *     });
  *     const call = yield* Braintrust.ProxyAuto(openai);
