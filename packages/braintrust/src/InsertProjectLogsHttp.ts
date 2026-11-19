@@ -10,10 +10,11 @@ import { PROJECT_LOG_UPDATE, projectClients, projectId } from "./internal/Projec
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const project = yield* Braintrust.Project("Support", {});
- * const insert = yield* Braintrust.InsertProjectLogs(project).pipe(
- *   Effect.provide(Braintrust.InsertProjectLogsHttp),
- * );
+ * Effect.gen(function* () {
+ *   const project = yield* Braintrust.Project("Support", {});
+ *   const insert = yield* Braintrust.InsertProjectLogs(project);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.InsertProjectLogsHttp))
  * ```
  *
  * @layer

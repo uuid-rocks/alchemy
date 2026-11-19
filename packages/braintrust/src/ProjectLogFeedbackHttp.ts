@@ -10,10 +10,11 @@ import { ProjectLogFeedback } from "./ProjectLogFeedback.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const project = yield* Braintrust.Project("Support", {});
- * const feedback = yield* Braintrust.ProjectLogFeedback(project).pipe(
- *   Effect.provide(Braintrust.ProjectLogFeedbackHttp),
- * );
+ * Effect.gen(function* () {
+ *   const project = yield* Braintrust.Project("Support", {});
+ *   const feedback = yield* Braintrust.ProjectLogFeedback(project);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.ProjectLogFeedbackHttp))
  * ```
  *
  * @layer

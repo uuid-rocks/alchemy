@@ -34,13 +34,15 @@ export type ProxyChatCompletionsClient = (
  * ### Calling a chat model
  * **Example:** ProxyChatCompletions from a Worker
  * ```typescript
+ * import * as Config from "effect/Config";
+ *
  * export default class Api extends Cloudflare.Worker<Api>()(
  *   "Api",
  *   { main: import.meta.url },
  *   Effect.gen(function* () {
  *     const openai = yield* Braintrust.AiSecret("OpenAI", {
  *       type: "openai",
- *       secret: Config.Redacted("OPENAI_API_KEY"),
+ *       secret: yield* Config.Redacted("OPENAI_API_KEY"),
  *     });
  *     const chat = yield* Braintrust.ProxyChatCompletions(openai);
  *

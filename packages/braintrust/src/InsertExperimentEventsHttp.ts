@@ -10,11 +10,12 @@ import { EXPERIMENT_UPDATE, experimentClients, experimentId } from "./internal/E
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const project = yield* Braintrust.Project("Support", {});
- * const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
- * const insert = yield* Braintrust.InsertExperimentEvents(experiment).pipe(
- *   Effect.provide(Braintrust.InsertExperimentEventsHttp),
- * );
+ * Effect.gen(function* () {
+ *   const project = yield* Braintrust.Project("Support", {});
+ *   const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
+ *   const insert = yield* Braintrust.InsertExperimentEvents(experiment);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.InsertExperimentEventsHttp))
  * ```
  *
  * @layer

@@ -11,13 +11,14 @@ import { ProxyAuto, type ProxyAutoClient } from "./ProxyAuto.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const openai = yield* Braintrust.AiSecret("OpenAI", {
- *   type: "openai",
- *   secret: Config.Redacted("OPENAI_API_KEY"),
- * });
- * const call = yield* Braintrust.ProxyAuto(openai).pipe(
- *   Effect.provide(Braintrust.ProxyAutoHttp),
- * );
+ * Effect.gen(function* () {
+ *   const openai = yield* Braintrust.AiSecret("OpenAI", {
+ *     type: "openai",
+ *     secret: Config.Redacted("OPENAI_API_KEY"),
+ *   });
+ *   const call = yield* Braintrust.ProxyAuto(openai);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.ProxyAutoHttp))
  * ```
  *
  * @layer

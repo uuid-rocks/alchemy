@@ -13,22 +13,23 @@ import type { Prompt } from "./Prompt.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const project = yield* Braintrust.Project("Support", {});
- * const classify = yield* Braintrust.Function("Classify", {
- *   projectId: project.projectId,
- *   functionType: "task",
- *   functionData: {
- *     type: "code",
- *     data: {
- *       type: "inline",
- *       runtime_context: { runtime: "node", version: "20" },
- *       code: "function handler(input) { return input.includes('invoice') ? 'billing' : 'general'; }",
+ * Effect.gen(function* () {
+ *   const project = yield* Braintrust.Project("Support", {});
+ *   const classify = yield* Braintrust.Function("Classify", {
+ *     projectId: project.projectId,
+ *     functionType: "task",
+ *     functionData: {
+ *       type: "code",
+ *       data: {
+ *         type: "inline",
+ *         runtime_context: { runtime: "node", version: "20" },
+ *         code: "function handler(input) { return input.includes('invoice') ? 'billing' : 'general'; }",
+ *       },
  *     },
- *   },
- * });
- * const invoke = yield* Braintrust.InvokeFunction(classify).pipe(
- *   Effect.provide(Braintrust.InvokeFunctionHttp),
- * );
+ *   });
+ *   const invoke = yield* Braintrust.InvokeFunction(classify);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.InvokeFunctionHttp))
  * ```
  *
  * @layer

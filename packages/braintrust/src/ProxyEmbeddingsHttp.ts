@@ -11,13 +11,14 @@ import { ProxyEmbeddings, type ProxyEmbeddingsClient } from "./ProxyEmbeddings.t
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const openai = yield* Braintrust.AiSecret("OpenAI", {
- *   type: "openai",
- *   secret: Config.Redacted("OPENAI_API_KEY"),
- * });
- * const embed = yield* Braintrust.ProxyEmbeddings(openai).pipe(
- *   Effect.provide(Braintrust.ProxyEmbeddingsHttp),
- * );
+ * Effect.gen(function* () {
+ *   const openai = yield* Braintrust.AiSecret("OpenAI", {
+ *     type: "openai",
+ *     secret: Config.Redacted("OPENAI_API_KEY"),
+ *   });
+ *   const embed = yield* Braintrust.ProxyEmbeddings(openai);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.ProxyEmbeddingsHttp))
  * ```
  *
  * @layer

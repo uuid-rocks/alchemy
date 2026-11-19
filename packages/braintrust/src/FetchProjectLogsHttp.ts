@@ -10,10 +10,11 @@ import { PROJECT_LOG_READ, projectClients, projectId } from "./internal/ProjectL
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const project = yield* Braintrust.Project("Support", {});
- * const fetch = yield* Braintrust.FetchProjectLogs(project).pipe(
- *   Effect.provide(Braintrust.FetchProjectLogsHttp),
- * );
+ * Effect.gen(function* () {
+ *   const project = yield* Braintrust.Project("Support", {});
+ *   const fetch = yield* Braintrust.FetchProjectLogs(project);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.FetchProjectLogsHttp))
  * ```
  *
  * @layer

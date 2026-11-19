@@ -12,10 +12,11 @@ import type { Project } from "./Project.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const project = yield* Braintrust.Project("Support", {});
- * const launch = yield* Braintrust.LaunchEval(project).pipe(
- *   Effect.provide(Braintrust.LaunchEvalHttp),
- * );
+ * Effect.gen(function* () {
+ *   const project = yield* Braintrust.Project("Support", {});
+ *   const launch = yield* Braintrust.LaunchEval(project);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.LaunchEvalHttp))
  * ```
  *
  * @layer

@@ -11,13 +11,16 @@ import { ProxyChatCompletions, type ProxyChatCompletionsClient } from "./ProxyCh
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const openai = yield* Braintrust.AiSecret("OpenAI", {
- *   type: "openai",
- *   secret: Config.Redacted("OPENAI_API_KEY"),
- * });
- * const chat = yield* Braintrust.ProxyChatCompletions(openai).pipe(
- *   Effect.provide(Braintrust.ProxyChatCompletionsHttp),
- * );
+ * import * as Config from "effect/Config";
+ *
+ * Effect.gen(function* () {
+ *   const openai = yield* Braintrust.AiSecret("OpenAI", {
+ *     type: "openai",
+ *     secret: yield* Config.Redacted("OPENAI_API_KEY"),
+ *   });
+ *   const chat = yield* Braintrust.ProxyChatCompletions(openai);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.ProxyChatCompletionsHttp))
  * ```
  *
  * @layer

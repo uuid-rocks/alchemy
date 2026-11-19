@@ -10,11 +10,12 @@ import { WriteExperiment, type WriteExperimentClient } from "./WriteExperiment.t
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const project = yield* Braintrust.Project("Support", {});
- * const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
- * const results = yield* Braintrust.WriteExperiment(experiment).pipe(
- *   Effect.provide(Braintrust.WriteExperimentHttp),
- * );
+ * Effect.gen(function* () {
+ *   const project = yield* Braintrust.Project("Support", {});
+ *   const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
+ *   const results = yield* Braintrust.WriteExperiment(experiment);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.WriteExperimentHttp))
  * ```
  *
  * @layer

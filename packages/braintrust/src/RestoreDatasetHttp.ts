@@ -15,11 +15,12 @@ import { RestoreDataset } from "./RestoreDataset.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const project = yield* Braintrust.Project("Support", {});
- * const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
- * const restore = yield* Braintrust.RestoreDataset(dataset).pipe(
- *   Effect.provide(Braintrust.RestoreDatasetHttp),
- * );
+ * Effect.gen(function* () {
+ *   const project = yield* Braintrust.Project("Support", {});
+ *   const dataset = yield* Braintrust.Dataset("Tickets", { projectId: project.projectId });
+ *   const restore = yield* Braintrust.RestoreDataset(dataset);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.RestoreDatasetHttp))
  * ```
  *
  * @layer

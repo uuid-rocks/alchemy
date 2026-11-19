@@ -11,13 +11,14 @@ import { ProxyCompletions, type ProxyCompletionsClient } from "./ProxyCompletion
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const openai = yield* Braintrust.AiSecret("OpenAI", {
- *   type: "openai",
- *   secret: Config.Redacted("OPENAI_API_KEY"),
- * });
- * const complete = yield* Braintrust.ProxyCompletions(openai).pipe(
- *   Effect.provide(Braintrust.ProxyCompletionsHttp),
- * );
+ * Effect.gen(function* () {
+ *   const openai = yield* Braintrust.AiSecret("OpenAI", {
+ *     type: "openai",
+ *     secret: Config.Redacted("OPENAI_API_KEY"),
+ *   });
+ *   const complete = yield* Braintrust.ProxyCompletions(openai);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.ProxyCompletionsHttp))
  * ```
  *
  * @layer

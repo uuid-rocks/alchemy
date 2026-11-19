@@ -10,11 +10,12 @@ import { ReadExperiment, type ReadExperimentClient } from "./ReadExperiment.ts";
  * ### Provide the layer
  * **Example:** On a Cloudflare Worker
  * ```typescript
- * const project = yield* Braintrust.Project("Support", {});
- * const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
- * const results = yield* Braintrust.ReadExperiment(experiment).pipe(
- *   Effect.provide(Braintrust.ReadExperimentHttp),
- * );
+ * Effect.gen(function* () {
+ *   const project = yield* Braintrust.Project("Support", {});
+ *   const experiment = yield* Braintrust.Experiment("Baseline", { projectId: project.projectId });
+ *   const results = yield* Braintrust.ReadExperiment(experiment);
+ *   // ...
+ * }).pipe(Effect.provide(Braintrust.ReadExperimentHttp))
  * ```
  *
  * @layer
