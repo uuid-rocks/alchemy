@@ -8,6 +8,7 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { testName } from "../names.ts";
+import { eventually } from "./lookup.ts";
 
 const { test } = Test.make({ providers: Braintrust.providers() });
 
@@ -39,6 +40,11 @@ const accepts = (key: Redacted.Redacted<string>) =>
     Effect.catchTag("Unauthorized", () => Effect.succeed(false)),
   );
 
+// A just-minted key can be refused for a moment: in one run, a key checked
+// right after the deploy that created it came back 401.
+const expectAccepted = (key: Redacted.Redacted<string>) =>
+  eventually(accepts(key), (ok) => expect(ok).toBe(true));
+
 // The deployer's own token expires, and Braintrust refuses tokens that
 // outlive it, so every test token sets an expiry.
 const program = (expiresInSeconds: number, accountName?: string) =>
@@ -65,7 +71,7 @@ test.provider(
       const observed = yield* getServiceToken(token.serviceTokenId);
       expect(observed.name).toBe(token.name);
       expect(observed.service_account_id).toBe(token.serviceAccountId);
-      expect(yield* accepts(token.key)).toBe(true);
+      yield* expectAccepted(token.key);
       // Braintrust ignores characters appended to a key, so change one instead.
       const value = Redacted.value(token.key);
       const tampered = `${value.slice(0, -1)}${value.endsWith("A") ? "B" : "A"}`;
@@ -97,7 +103,7 @@ test.provider(
       const moved = yield* stack.deploy(renamed);
       expect(moved.serviceAccountId).not.toBe(rotated.serviceAccountId);
       expect(moved.serviceTokenId).not.toBe(rotated.serviceTokenId);
-      expect(yield* accepts(moved.key)).toBe(true);
+      yield* expectAccepted(moved.key);
       yield* expectTokenGone(rotated.serviceTokenId);
 
       yield* stack.destroy();
@@ -121,7 +127,7 @@ test.provider(
       expect(plan.resources.Token.action).toBe("replace");
       const renewed = yield* stack.deploy(program(30));
       expect(renewed.serviceTokenId).not.toBe(token.serviceTokenId);
-      expect(yield* accepts(renewed.key)).toBe(true);
+      yield* expectAccepted(renewed.key);
       yield* expectTokenGone(token.serviceTokenId);
 
       yield* stack.destroy();
