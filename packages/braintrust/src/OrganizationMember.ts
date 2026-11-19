@@ -166,6 +166,8 @@ export const OrganizationMemberProvider = () =>
           // An email that resolves only at apply plans an update, which the
           // engine doesn't check for ownership, so a person found here may
           // have joined some other way. Refuse before removing anyone.
+          // Workaround: this repeats core's adopt precedence (resource, then
+          // AdoptPolicy, then --adopt) until core checks ownership itself.
           if (user && output && output.userId !== user.id) {
             const stack = yield* Stack;
             const adopt =
