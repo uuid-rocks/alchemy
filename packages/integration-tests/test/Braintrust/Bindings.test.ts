@@ -1368,102 +1368,69 @@ describe("Partial failure", { tags }, () => {
 
 describe("Looked-up objects", { tags }, () => {
   test.provider(
-    "grants a host each looked-up dataset it binds",
+    "grants a host each looked-up dataset it binds, however alike the lookups are",
     (stack) =>
       Effect.gen(function* () {
         yield* stack.destroy();
-        const project = yield* stack.deploy(Braintrust.Project("LookupProject", {}));
-        // Datasets this stack doesn't manage, so `lookup` may find them. The
-        // names differ only in punctuation, which must not merge their ACLs.
-        const datasets = yield* Effect.forEach(["lookup-a", "lookup_a"], (name) =>
-          braintrust.createDataset({ project_id: project.projectId, name }),
+        // One host binds three kinds of look-alike lookups; any two that
+        // merged would leave it a grant short.
+        const projects = Effect.all({
+          // Datasets whose names differ only in punctuation.
+          Punctuation: Braintrust.Project("LookupProject", {}),
+          // Same-named datasets in two projects with the logical id `Project`,
+          // so only their FQNs differ.
+          A: Braintrust.Project("Project", {}).pipe(Namespace.push("A")),
+          B: Braintrust.Project("Project", {}).pipe(Namespace.push("B")),
+          // Same-named datasets looked up through closures that differ only in
+          // what they capture.
+          ClosureA: Braintrust.Project("ClosureA", {}),
+          ClosureB: Braintrust.Project("ClosureB", {}),
+        });
+        const deployed = yield* stack.deploy(projects);
+        // Datasets this stack doesn't manage, so `lookup` may find them.
+        const datasets = yield* Effect.forEach(
+          [
+            [deployed.Punctuation, "lookup-a"],
+            [deployed.Punctuation, "lookup_a"],
+            [deployed.A, "lookup-same"],
+            [deployed.B, "lookup-same"],
+            [deployed.ClosureA, "lookup-same"],
+            [deployed.ClosureB, "lookup-same"],
+          ] as const,
+          ([project, name]) => braintrust.createDataset({ project_id: project.projectId, name }),
         );
         const env = yield* stack.deploy(
           Effect.gen(function* () {
-            const project = yield* Braintrust.Project("LookupProject", {});
-            const lookup = (name: string) =>
-              Braintrust.Dataset.lookup({ projectId: project.projectId, name });
+            const { Punctuation, A, B, ClosureA, ClosureB } = yield* projects;
+            const ids = Output.map(
+              Output.all(ClosureA.projectId, ClosureB.projectId),
+              ([a, b]) => ({ A: a, B: b }),
+            );
             return yield* host(
               "LookupHost",
               Effect.gen(function* () {
-                yield* Braintrust.ReadDataset(lookup("lookup-a"));
-                yield* Braintrust.ReadDataset(lookup("lookup_a"));
+                for (const name of ["lookup-a", "lookup_a"]) {
+                  yield* Braintrust.ReadDataset(
+                    Braintrust.Dataset.lookup({ projectId: Punctuation.projectId, name }),
+                  );
+                }
+                for (const project of [A, B]) {
+                  yield* Braintrust.ReadDataset(
+                    Braintrust.Dataset.lookup({
+                      projectId: project.projectId,
+                      name: "lookup-same",
+                    }),
+                  );
+                }
+                for (const key of ["A", "B"] as const) {
+                  yield* Braintrust.ReadDataset(
+                    Braintrust.Dataset.lookup({
+                      projectId: Output.map(ids, (byKey) => byKey[key]),
+                      name: "lookup-same",
+                    }),
+                  );
+                }
               }).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),
-            );
-          }),
-        );
-        const { grants } = yield* grantsOf(env);
-        expect(grants).toEqual(datasets.map((dataset) => `dataset:${dataset.id}:read`).sort());
-        yield* stack.destroy();
-      }),
-    { tags, timeout: 300_000 },
-  );
-
-  test.provider(
-    "grants a host same-named datasets looked up in two projects",
-    (stack) =>
-      Effect.gen(function* () {
-        yield* stack.destroy();
-        // Both projects have the logical id `Project`, so only their FQNs differ.
-        const projects = Effect.all(
-          ["A", "B"].map((namespace) =>
-            Braintrust.Project("Project", {}).pipe(Namespace.push(namespace)),
-          ),
-        );
-        const deployed = yield* stack.deploy(projects);
-        const datasets = yield* Effect.forEach(deployed, (project) =>
-          braintrust.createDataset({ project_id: project.projectId, name: "lookup-same" }),
-        );
-        const env = yield* stack.deploy(
-          Effect.gen(function* () {
-            const bound = yield* projects;
-            return yield* host(
-              "LookupHost",
-              Effect.forEach(bound, (project) =>
-                Braintrust.ReadDataset(
-                  Braintrust.Dataset.lookup({ projectId: project.projectId, name: "lookup-same" }),
-                ),
-              ).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),
-            );
-          }),
-        );
-        const { grants } = yield* grantsOf(env);
-        expect(grants).toEqual(datasets.map((dataset) => `dataset:${dataset.id}:read`).sort());
-        yield* stack.destroy();
-      }),
-    { tags, timeout: 300_000 },
-  );
-
-  test.provider(
-    "grants a host datasets looked up through closures that differ only in what they capture",
-    (stack) =>
-      Effect.gen(function* () {
-        yield* stack.destroy();
-        const projects = Effect.all({
-          A: Braintrust.Project("ClosureA", {}),
-          B: Braintrust.Project("ClosureB", {}),
-        });
-        const deployed = yield* stack.deploy(projects);
-        const datasets = yield* Effect.forEach([deployed.A, deployed.B], (project) =>
-          braintrust.createDataset({ project_id: project.projectId, name: "lookup-same" }),
-        );
-        const env = yield* stack.deploy(
-          Effect.gen(function* () {
-            const { A, B } = yield* projects;
-            const ids = Output.map(Output.all(A.projectId, B.projectId), ([a, b]) => ({
-              A: a,
-              B: b,
-            }));
-            return yield* host(
-              "LookupHost",
-              Effect.forEach(["A", "B"] as const, (key) =>
-                Braintrust.ReadDataset(
-                  Braintrust.Dataset.lookup({
-                    projectId: Output.map(ids, (byKey) => byKey[key]),
-                    name: "lookup-same",
-                  }),
-                ),
-              ).pipe(Effect.provide(Braintrust.ReadDatasetHttp)),
             );
           }),
         );
