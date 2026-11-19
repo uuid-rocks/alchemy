@@ -309,11 +309,22 @@ export const EnvVarProvider = () =>
           const lists = yield* Effect.forEach(
             owned,
             (project) =>
-              braintrust
-                .listEnvVars({ object_type: "project", object_id: project.id })
-                .pipe(
-                  Effect.catchTag("NotFoundOrForbidden", () => Effect.succeed({ objects: [] })),
+              braintrust.listEnvVars({ object_type: "project", object_id: project.id }).pipe(
+                // The same 403 means a denied scope or one that no longer
+                // exists. Only a project that is gone from the list was
+                // deleted since it was listed; anything else fails loudly.
+                Effect.catchTag("NotFoundOrForbidden", (error) =>
+                  braintrust
+                    .listProjects({ ids: [project.id] })
+                    .pipe(
+                      Effect.flatMap(({ objects }) =>
+                        objects.some((found) => !found.deleted_at)
+                          ? Effect.fail(error)
+                          : Effect.succeed({ objects: [] }),
+                      ),
+                    ),
                 ),
+              ),
             { concurrency: 4 },
           );
           return lists.flatMap(({ objects }) => objects.map(toAttributes));
