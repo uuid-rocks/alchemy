@@ -185,6 +185,19 @@ export const OrganizationMemberProvider = () =>
             }
           }
 
+          // An email that resolved at apply to someone else moves the member,
+          // as a replace would: the person it named before leaves. They leave
+          // before the new address is invited, so a retry after a failure in
+          // between finds no one there and invites again instead of refusing
+          // the person this resource was inviting. Removing someone who
+          // already left succeeds.
+          if (output && output.userId !== user?.id) {
+            yield* session.note(`Removing ${output.email}...`);
+            yield* braintrust.updateOrganizationMembers({
+              remove_users: { ids: [output.userId] },
+            });
+          }
+
           // Ensure — inviting someone already in the organization adds no one.
           if (!user) {
             yield* session.note(`Inviting ${news.email}...`);
@@ -205,15 +218,6 @@ export const OrganizationMemberProvider = () =>
             if (!user) {
               return yield* new OrganizationMemberNotInvited({ email: news.email });
             }
-          }
-
-          // An email that resolved at apply to someone else moves the member,
-          // as a replace would: the person it named before leaves.
-          if (output && output.userId !== user.id) {
-            yield* session.note(`Removing ${output.email}...`);
-            yield* braintrust.updateOrganizationMembers({
-              remove_users: { ids: [output.userId] },
-            });
           }
 
           return toAttributes(user, news.email);
