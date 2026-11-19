@@ -93,7 +93,7 @@ test.provider(
 );
 
 test.provider(
-  "an email resolved at apply to a member invited elsewhere is refused unless adopted",
+  "an email resolved at apply moves the member, but to one invited elsewhere only when adopted",
   (stack) =>
     Effect.gen(function* () {
       yield* stack.destroy();
@@ -130,8 +130,23 @@ test.provider(
       expect(adopted.userId).toBe(joinedId);
       yield* expectNotMember(managed);
 
-      yield* stack.destroy();
+      // An address no one holds: the old member is removed, then the new
+      // one invited.
+      const fresh = email("alchemy-test-bt-member-fresh");
+      const moved = yield* stack.deploy(
+        Effect.gen(function* () {
+          const project = yield* Braintrust.Project("Label2", {});
+          return yield* Braintrust.OrganizationMember("Member", {
+            email: Output.map(project.projectId, () => fresh),
+          });
+        }),
+      );
+      expect(moved.email).toBe(fresh);
+      expect(yield* membersWithEmail(fresh)).toEqual([moved.userId]);
       yield* expectNotMember(address);
+
+      yield* stack.destroy();
+      yield* expectNotMember(fresh);
     }),
   { tags, exclusive: "braintrust:org-members", timeout: 180_000 },
 );
