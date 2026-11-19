@@ -39,6 +39,7 @@ interface Bound {
   experiment: Braintrust.Experiment;
   dataset: Braintrust.Dataset;
   secret: Braintrust.AiSecret;
+  fn: Braintrust.Function;
 }
 
 const Objects = Effect.gen(function* () {
@@ -53,7 +54,18 @@ const Objects = Effect.gen(function* () {
     type: "openai",
     secret: Redacted.make("sk-fake-not-a-key"),
   });
-  return { project, experiment, dataset, secret } satisfies Bound;
+  const fn = yield* Braintrust.Function("Echo", {
+    projectId: project.projectId,
+    functionData: {
+      type: "code",
+      data: {
+        type: "inline",
+        runtime_context: { runtime: "node", version: "20" },
+        code: "async function handler(input) { return input; }",
+      },
+    },
+  });
+  return { project, experiment, dataset, secret, fn } satisfies Bound;
 });
 
 /** Objects no host is granted anything on. */
@@ -72,14 +84,19 @@ const Others = Effect.gen(function* () {
   return { project, experiment, dataset, secret };
 });
 
+/**
+ * The reader's bindings register concurrently, with the scheduler yielding
+ * after every operation, so they interleave wherever they can.
+ */
 const readerInit = (b: Bound) =>
-  Effect.gen(function* () {
-    return {
-      logs: yield* Braintrust.ReadProjectLogs(b.project),
-      experiment: yield* Braintrust.ReadExperiment(b.experiment),
-      dataset: yield* Braintrust.ReadDataset(b.dataset),
-    };
-  }).pipe(
+  Effect.all(
+    {
+      logs: Braintrust.ReadProjectLogs(b.project),
+      experiment: Braintrust.ReadExperiment(b.experiment),
+      dataset: Braintrust.ReadDataset(b.dataset),
+    },
+    { concurrency: "unbounded" },
+  ).pipe(
     Effect.provide(
       Layer.mergeAll(
         Braintrust.ReadProjectLogsHttp,
@@ -87,6 +104,7 @@ const readerInit = (b: Bound) =>
         Braintrust.ReadDatasetHttp,
       ),
     ),
+    Effect.provideService(Scheduler.MaxOpsBeforeYield, 1),
   );
 
 const writerInit = (b: Bound) =>
@@ -123,30 +141,7 @@ const readWriterInit = (b: Bound) =>
     ),
   );
 
-/**
- * The reader's bindings, registered concurrently with the scheduler yielding
- * after every operation, so they interleave wherever they can.
- */
-const concurrentInit = (b: Bound) =>
-  Effect.all(
-    [
-      Braintrust.ReadProjectLogs(b.project),
-      Braintrust.ReadExperiment(b.experiment),
-      Braintrust.ReadDataset(b.dataset),
-    ],
-    { concurrency: "unbounded" },
-  ).pipe(
-    Effect.provide(
-      Layer.mergeAll(
-        Braintrust.ReadProjectLogsHttp,
-        Braintrust.ReadExperimentHttp,
-        Braintrust.ReadDatasetHttp,
-      ),
-    ),
-    Effect.provideService(Scheduler.MaxOpsBeforeYield, 1),
-  );
-
-/** One binding per operation, plus the eval and proxy bindings. */
+/** One binding per operation, plus the eval, proxy and invoke bindings. */
 const opsInit = (b: Bound) =>
   Effect.gen(function* () {
     return {
@@ -169,6 +164,7 @@ const opsInit = (b: Bound) =>
       embed: yield* Braintrust.ProxyEmbeddings(b.secret),
       auto: yield* Braintrust.ProxyAuto(b.secret),
       proxy: yield* Braintrust.ProxyRequest(b.secret),
+      invoke: yield* Braintrust.InvokeFunction(b.fn),
     };
   }).pipe(
     Effect.provide(
@@ -192,12 +188,10 @@ const opsInit = (b: Bound) =>
         Braintrust.ProxyEmbeddingsHttp,
         Braintrust.ProxyAutoHttp,
         Braintrust.ProxyRequestHttp,
+        Braintrust.InvokeFunctionHttp,
       ),
     ),
   );
-
-const invokerInit = (fn: Braintrust.Function) =>
-  Braintrust.InvokeFunction(fn).pipe(Effect.provide(Braintrust.InvokeFunctionHttp));
 
 type Env = Record<string, unknown>;
 
@@ -359,6 +353,7 @@ let deployed: {
     experimentName: string;
     datasetId: string;
     secretId: string;
+    functionId: string;
     otherProjectId: string;
     otherExperimentId: string;
     otherDatasetId: string;
@@ -367,7 +362,6 @@ let deployed: {
   writer: Env;
   readWriter: Env;
   ops: Env;
-  concurrent: Env;
 };
 
 describe("Braintrust bindings", { tags }, () => {
@@ -385,6 +379,7 @@ describe("Braintrust bindings", { tags }, () => {
               experimentName: bound.experiment.name,
               datasetId: bound.dataset.datasetId,
               secretId: bound.secret.aiSecretId,
+              functionId: bound.fn.functionId,
               otherProjectId: other.project.projectId,
               otherExperimentId: other.experiment.experimentId,
               otherDatasetId: other.dataset.datasetId,
@@ -393,7 +388,6 @@ describe("Braintrust bindings", { tags }, () => {
             writer: yield* host("WriterHost", writerInit(bound)),
             readWriter: yield* host("ReadWriterHost", readWriterInit(bound)),
             ops: yield* host("OpsHost", opsInit(bound)),
-            concurrent: yield* host("ConcurrentHost", concurrentInit(bound)),
           };
         }),
       );
@@ -414,7 +408,10 @@ describe("Braintrust bindings", { tags }, () => {
           const experiment = `experiment:${ids.experimentId}`;
           const dataset = `dataset:${ids.datasetId}`;
           const secret = `ai_secret:${ids.secretId}`;
+          // Braintrust's ACLs know functions as prompts.
+          const fn = `prompt:${ids.functionId}`;
 
+          // The reader registers its bindings concurrently, and still gets all three.
           const readerGrants = yield* grantsOf(reader);
           expect(readerGrants.grants).toEqual(
             [`${dataset}:read`, `${experiment}:read`, `${logs}:read`].sort(),
@@ -448,6 +445,7 @@ describe("Braintrust bindings", { tags }, () => {
               `${project}:read`,
               `${project}:create:experiment`,
               `${secret}:read`,
+              `${fn}:read`,
             ].sort(),
           );
           const accounts = new Set(
@@ -458,22 +456,6 @@ describe("Braintrust bindings", { tags }, () => {
           expect(accounts.size).toBe(4);
           expect(reader.BRAINTRUST_API_URL).toBe(Braintrust.DEFAULT_API_URL);
           expect(Redacted.isRedacted(reader.BRAINTRUST_API_KEY)).toBe(true);
-        }),
-      { tags, timeout: 120_000 },
-    );
-
-    test.provider(
-      "grants every object bound concurrently on one host",
-      (_stack) =>
-        Effect.gen(function* () {
-          const { ids, concurrent } = deployed;
-          expect((yield* grantsOf(concurrent)).grants).toEqual(
-            [
-              `dataset:${ids.datasetId}:read`,
-              `experiment:${ids.experimentId}:read`,
-              `project_log:${ids.projectId}:read`,
-            ].sort(),
-          );
         }),
       { tags, timeout: 120_000 },
     );
@@ -1068,6 +1050,19 @@ describe("Braintrust bindings", { tags }, () => {
     );
   });
 
+  describe("InvokeFunction", () => {
+    test(
+      "runs the bound function as the host",
+      Effect.gen(function* () {
+        const output = yield* inHost(deployed.ops, opsInit(bound), ({ invoke }) =>
+          settled(invoke({ input: { echo: "hi" } })),
+        );
+        expect(output).toEqual({ echo: "hi" });
+      }),
+      { tags, timeout: 120_000, exclusive: true },
+    );
+  });
+
   // The bound secret's key is not a real OpenAI key, so a call that reaches
   // OpenAI comes back 401 with OpenAI's JSON body. Without the bound secret
   // the proxy answers 401 itself ("Braintrust gateway error: no provider
@@ -1169,42 +1164,6 @@ describe("Braintrust bindings", { tags }, () => {
     );
   });
 });
-
-describe("InvokeFunction", { tags }, () => {
-  test.provider(
-    "runs the bound function as the host",
-    (stack) =>
-      Effect.gen(function* () {
-        yield* stack.destroy();
-        const { env } = yield* stack.deploy(
-          Effect.gen(function* () {
-            const project = yield* Braintrust.Project("Invoked", {});
-            const fn = yield* Braintrust.Function("Echo", {
-              projectId: project.projectId,
-              functionData: {
-                type: "code",
-                data: {
-                  type: "inline",
-                  runtime_context: { runtime: "node", version: "20" },
-                  code: "async function handler(input) { return input; }",
-                },
-              },
-            });
-            invoked = fn;
-            return { env: yield* host("InvokerHost", invokerInit(fn)) };
-          }),
-        );
-        const output = yield* inHost(env, invokerInit(invoked), (invoke) =>
-          settled(invoke({ input: { echo: "hi" } })),
-        );
-        expect(output).toEqual({ echo: "hi" });
-        yield* stack.destroy();
-      }),
-    { tags, timeout: 300_000, exclusive: true },
-  );
-});
-
-let invoked: Braintrust.Function;
 
 describe("Host lifecycle", { tags }, () => {
   test.provider(
