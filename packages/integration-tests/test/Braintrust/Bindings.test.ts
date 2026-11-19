@@ -306,8 +306,8 @@ const readBack = <P extends { readonly events: ReadonlyArray<{ readonly id: stri
   fetch.pipe(
     Effect.repeat({
       until: (page) => page.events.some((event) => event.id === id),
-      schedule: Schedule.spaced("2 seconds"),
-      times: 30,
+      schedule: Schedule.spaced("6 seconds"),
+      times: 10,
     }),
   );
 
@@ -491,7 +491,7 @@ describe("Braintrust bindings", { tags }, () => {
             events: [{ id: "read-logs", input: "q" }],
           });
           const page = yield* inHost(reader, readerInit(bound), ({ logs }) =>
-            readBack(settled(logs.fetch()), "read-logs"),
+            Effect.andThen(settled(logs.fetch()), readBack(logs.fetch(), "read-logs")),
           );
           expect(page.events.map((event) => event.id)).toContain("read-logs");
           expect(page.events.every((event) => event.project_id === ids.projectId)).toBe(true);
@@ -527,7 +527,10 @@ describe("Braintrust bindings", { tags }, () => {
           });
           const { page, summary } = yield* inHost(reader, readerInit(bound), ({ experiment }) =>
             Effect.all({
-              page: readBack(settled(experiment.fetch()), "read-experiment"),
+              page: Effect.andThen(
+                settled(experiment.fetch()),
+                readBack(experiment.fetch(), "read-experiment"),
+              ),
               summary: settled(experiment.summarize({ summarize_scores: true })),
             }),
           );
@@ -566,9 +569,12 @@ describe("Braintrust bindings", { tags }, () => {
           });
           const result = yield* inHost(reader, readerInit(bound), ({ dataset }) =>
             Effect.gen(function* () {
-              const page = yield* readBack(settled(dataset.fetch()), "read-dataset");
+              const page = yield* Effect.andThen(
+                settled(dataset.fetch()),
+                readBack(dataset.fetch(), "read-dataset"),
+              );
               // The summary counts a new record a moment after a fetch returns it.
-              const summary = yield* settled(dataset.summarize({ summarize_data: true })).pipe(
+              const summary = yield* dataset.summarize({ summarize_data: true }).pipe(
                 Effect.repeat({
                   until: (s) => s.data_summary?.total_records === page.events.length,
                   schedule: Schedule.spaced("2 seconds"),

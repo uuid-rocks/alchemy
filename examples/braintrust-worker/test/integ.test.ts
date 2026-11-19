@@ -59,8 +59,8 @@ const readBack = <E, R>(
     Effect.map((page) => page.events.find((event) => event.id === id) as any),
     Effect.repeat({
       until: (event) => event !== undefined,
-      schedule: Schedule.spaced("2 seconds"),
-      times: 30,
+      schedule: Schedule.spaced("6 seconds"),
+      times: 10,
     }),
   );
 
