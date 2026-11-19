@@ -193,7 +193,9 @@ export const OrganizationSettingsProvider = () =>
         reconcile: Effect.fn(function* ({ news, output, session }) {
           // Observe
           const org = (yield* observe(output?.orgId)) ?? (yield* currentOrganization);
-          const original: Captured = { ...output?.original };
+          // Values captured from another organization (the deployer's key
+          // changed orgs) would be restored onto this one on destroy.
+          const original: Captured = org.id === output?.orgId ? { ...output.original } : {};
           if (news.imageRenderingMode !== undefined) {
             original.imageRenderingMode ??= imageModeOf(org);
           }
