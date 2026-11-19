@@ -42,7 +42,7 @@ export const sameName = (name: unknown, oldName: string | undefined): boolean =>
  */
 export const isGeneratedName = (name: string | null | undefined): boolean =>
   typeof name === "string" &&
-  (/^[a-z0-9-]+-[a-z0-9-]+-[a-z0-9-]+-[a-z2-7]{16}$/.test(name) ||
+  ((name.length <= 128 && /^[a-z0-9-]+-[a-z0-9-]+-[a-z0-9-]+-[a-z2-7]{16}$/.test(name)) ||
     /^[a-z0-9-]{104}[a-z2-7]{24}$/.test(name));
 
 /**
@@ -69,6 +69,8 @@ export class BraintrustObjectNotDeleted extends Data.TaggedError("BraintrustObje
  * delete with the same error it gives for an object that is gone, so only a
  * fresh `observe` tells them apart: absent or soft-deleted is gone, anything
  * else fails instead of dropping the object from state while it lives on.
+ * A deployer that can't read the object either still sees it as gone: the
+ * read fails the same way for a deleted object, so nothing can tell.
  */
 export const confirmDeleted = <A extends object, E, R>(
   objectType: string,
