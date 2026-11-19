@@ -147,3 +147,41 @@ test.provider(
     }),
   { tags, timeout: 120_000 },
 );
+
+test.provider(
+  "members added outside Alchemy survive a deploy that leaves the member props unset",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      // The members are test-owned; only their group membership is out of band.
+      const app = (description: string) =>
+        Effect.gen(function* () {
+          const account = yield* Braintrust.ServiceAccount("Member", {});
+          const inner = yield* Braintrust.Group("Inner", {});
+          const group = yield* Braintrust.Group("Group", { description });
+          return { group, userId: account.serviceAccountId, innerId: inner.groupId };
+        });
+
+      const { group, userId, innerId } = yield* stack.deploy(app("first"));
+      yield* braintrust.updateGroup({
+        group_id: group.groupId,
+        add_member_users: [userId],
+        add_member_groups: [innerId],
+      });
+
+      const updated = yield* stack.deploy(app("second"));
+      expect(updated.group.memberUserIds).toEqual([userId]);
+      expect(updated.group.memberGroupIds).toEqual([innerId]);
+      yield* eventually(getGroup(group.groupId), (observed) => {
+        expect(observed.description).toBe("second");
+        expect(observed.member_users).toEqual([userId]);
+        expect(observed.member_groups).toEqual([innerId]);
+      });
+
+      yield* stack.destroy();
+      yield* expectGroupGone(group.groupId);
+      yield* expectGroupGone(innerId);
+    }),
+  { tags, timeout: permissionWritesTimeout },
+);

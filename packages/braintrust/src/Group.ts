@@ -19,13 +19,15 @@ export interface GroupProps {
   description?: string;
   /**
    * Ids of the users and service accounts in the group, e.g.
-   * `serviceAccount.serviceAccountId`. Users not listed are removed.
-   * @default []
+   * `serviceAccount.serviceAccountId`. Once set, users not listed are
+   * removed, and every user when this is removed; `[]` empties the group.
+   * Never set, members added in the UI are not managed.
    */
   memberUserIds?: string[];
   /**
-   * Ids of the groups whose members this group inherits.
-   * @default []
+   * Ids of the groups whose members this group inherits. Once set, groups
+   * not listed are removed, and every group when this is removed. Never
+   * set, member groups added in the UI are not managed.
    */
   memberGroupIds?: string[];
 }
@@ -73,8 +75,9 @@ export interface GroupLookup {
  *
  * Groups carry no tags, so Alchemy recognizes its own by name: a group found
  * under an explicit `name` with no prior state is refused unless adopted
- * (`adopt(true)` or `--adopt`). Once managed, its members are exactly the
- * ones you list.
+ * (`adopt(true)` or `--adopt`). Once you set `memberUserIds` or
+ * `memberGroupIds`, those members are exactly the ones you list; leave a
+ * prop unset to keep members added in the UI.
  *
  * ### Creating a Group
  * **Example:** A group with a service account in it
@@ -170,7 +173,7 @@ export const GroupProvider = () =>
             ? attrs
             : unownedUnlessPrevious(attrs, previous, "groupId");
         }),
-        reconcile: Effect.fn(function* ({ id, news, output, session }) {
+        reconcile: Effect.fn(function* ({ id, news, olds, output, session }) {
           const name = yield* braintrustName(id, news.name);
 
           // Observe — by id once we have one (it survives renames), else by name.
@@ -191,18 +194,23 @@ export const GroupProvider = () =>
 
           // Sync — PATCH the name and description that differ, and add or
           // remove members against the observed sets. `null` leaves a
-          // description as it is; `""` clears it.
+          // description as it is; `""` clears it. Members are untouched until
+          // the props first set them, so members added in the UI survive.
           const update: Omit<braintrust.UpdateGroupRequest, "group_id"> = {};
           if (group.name !== name) update.name = name;
           if ((group.description || undefined) !== (news.description || undefined)) {
             update.description = news.description ?? "";
           }
-          const users = delta(group.member_users ?? [], news.memberUserIds ?? []);
-          if (users.add.length > 0) update.add_member_users = users.add;
-          if (users.remove.length > 0) update.remove_member_users = users.remove;
-          const groups = delta(group.member_groups ?? [], news.memberGroupIds ?? []);
-          if (groups.add.length > 0) update.add_member_groups = groups.add;
-          if (groups.remove.length > 0) update.remove_member_groups = groups.remove;
+          if (news.memberUserIds !== undefined || olds?.memberUserIds !== undefined) {
+            const users = delta(group.member_users ?? [], news.memberUserIds ?? []);
+            if (users.add.length > 0) update.add_member_users = users.add;
+            if (users.remove.length > 0) update.remove_member_users = users.remove;
+          }
+          if (news.memberGroupIds !== undefined || olds?.memberGroupIds !== undefined) {
+            const groups = delta(group.member_groups ?? [], news.memberGroupIds ?? []);
+            if (groups.add.length > 0) update.add_member_groups = groups.add;
+            if (groups.remove.length > 0) update.remove_member_groups = groups.remove;
+          }
           if (Object.keys(update).length > 0) {
             yield* session.note(`Updating group ${name}...`);
             group = yield* braintrust.updateGroup({ group_id: group.id, ...update });

@@ -49,7 +49,7 @@ An ACL can't be edited, so changing any of its props replaces it: the new grant 
 
 ## Groups
 
-A group's members are users and service accounts, listed by id. Once Alchemy manages a group, its members are exactly the ones you list:
+A group's members are users and service accounts, listed by id. Once you list them, they are exactly the group's members; leave `memberUserIds` unset to keep members added in the UI:
 
 ```typescript title="alchemy.run.ts"
 const ci = yield* Braintrust.ServiceAccount("CI", {});
