@@ -339,14 +339,18 @@ export const PromptProvider = () =>
       return {
         stables: ["promptId", "projectId"],
         diff: Effect.fn(function* ({ news, olds }) {
-          // An id that resolves only at apply may name a new parent or the
-          // same one, and apply doesn't diff again, so the move is planned as
-          // a replace now.
-          if ("projectId" in news && !isResolved(news.projectId)) {
-            return { action: "replace", deleteFirst: sameName(news.slug, olds.slug) } as const;
+          if ("projectId" in news) {
+            // An id that resolves only at apply may name a new parent or the
+            // same one, and apply doesn't diff again, so the move is planned
+            // as a replace now.
+            if (!isResolved(news.projectId)) {
+              return { action: "replace", deleteFirst: sameName(news.slug, olds.slug) } as const;
+            }
+            // Compared before the other props resolve: with one unresolved,
+            // the engine plans an update, which would create the object in the
+            // new parent and leave the old one behind.
+            if (news.projectId !== olds.projectId) return { action: "replace" } as const;
           }
-          if (!isResolved(news)) return undefined;
-          if (news.projectId !== olds.projectId) return { action: "replace" } as const;
         }),
         lookup: Effect.fn(function* ({ projectId, slug }) {
           const prompt = yield* findBySlug(projectId, slug);

@@ -144,23 +144,27 @@ export const DatasetSnapshotProvider = () =>
       return {
         stables: ["datasetSnapshotId", "datasetId", "xactId"],
         diff: Effect.fn(function* ({ news, olds, output }) {
-          // An id that resolves only at apply may name a new parent or the
-          // same one, and apply doesn't diff again, so the move is planned as
-          // a replace now.
-          if ("datasetId" in news && !isResolved(news.datasetId)) {
-            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
-          }
-          // A version is immutable. Under the same name in the same dataset,
-          // creating first would collide: Braintrust renames the new snapshot,
-          // and renaming it back fails.
-          if ("xactId" in news && !isResolved(news.xactId)) {
-            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
-          }
-          if (!isResolved(news)) return undefined;
-          if (news.datasetId !== olds.datasetId) return { action: "replace" } as const;
-          // An adoption's `olds` are the new props; `output` is what it found.
-          if (news.xactId !== (output?.xactId ?? olds.xactId)) {
-            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+          if ("datasetId" in news && "xactId" in news) {
+            // An id that resolves only at apply may name a new parent or the
+            // same one, and apply doesn't diff again, so the move is planned
+            // as a replace now.
+            if (!isResolved(news.datasetId)) {
+              return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+            }
+            // Compared before the other props resolve: with one unresolved,
+            // the engine plans an update, which would create the object in the
+            // new parent and leave the old one behind.
+            if (news.datasetId !== olds.datasetId) return { action: "replace" } as const;
+            // A version is immutable. Under the same name in the same dataset,
+            // creating first would collide: Braintrust renames the new
+            // snapshot, and renaming it back fails.
+            if (!isResolved(news.xactId)) {
+              return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+            }
+            // An adoption's `olds` are the new props; `output` is what it found.
+            if (news.xactId !== (output?.xactId ?? olds.xactId)) {
+              return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+            }
           }
         }),
         lookup: Effect.fn(function* ({ datasetId, name }) {

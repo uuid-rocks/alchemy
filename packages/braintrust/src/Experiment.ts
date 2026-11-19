@@ -312,6 +312,10 @@ export const ExperimentProvider = () =>
             if (!isResolved(news.projectId)) {
               return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
             }
+            // Compared before the other props resolve: with one unresolved,
+            // the engine plans an update, which would create the object in the
+            // new parent and leave the old one behind.
+            if (news.projectId !== olds.projectId) return { action: "replace" } as const;
             // An adoption's `olds` are the new props; `output` is what it found.
             // Checked before the other props resolve, for the same reason.
             const unlinked = (key: "datasetId" | "parametersId") =>
@@ -325,8 +329,6 @@ export const ExperimentProvider = () =>
               } as const;
             }
           }
-          if (!isResolved(news)) return undefined;
-          if (news.projectId !== olds.projectId) return { action: "replace" } as const;
         }),
         lookup: Effect.fn(function* ({ projectId, name }) {
           const experiment = yield* findByName(projectId, name);

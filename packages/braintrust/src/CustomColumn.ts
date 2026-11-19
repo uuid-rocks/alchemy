@@ -214,22 +214,31 @@ export const CustomColumnProvider = () =>
       return {
         stables: ["customColumnId", "objectType", "objectId", "subtype", "variant"],
         diff: Effect.fn(function* ({ news, olds }) {
-          // An id that resolves only at apply may name a new parent or the
-          // same one, and apply doesn't diff again, so the move is planned as
-          // a replace now.
-          if ("objectId" in news && !isResolved(news.objectId)) {
-            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
-          }
-          if (!isResolved(news)) return undefined;
-          if (
-            news.objectType !== olds.objectType ||
-            news.objectId !== olds.objectId ||
-            news.subtype !== olds.subtype ||
-            // Setting the variant Braintrust defaults to is not a change.
-            (news.variant ?? (news.subtype || news.objectType)) !==
-              (olds.variant ?? (olds.subtype || olds.objectType))
-          ) {
-            return { action: "replace" } as const;
+          if ("objectId" in news && "objectType" in news && "subtype" in news) {
+            // A table that resolves only at apply may be a new one or the same
+            // one, and apply doesn't diff again, so the move is planned as a
+            // replace now.
+            if (
+              !isResolved(news.objectId) ||
+              !isResolved(news.objectType) ||
+              !isResolved(news.subtype) ||
+              !isResolved(news.variant)
+            ) {
+              return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+            }
+            // Compared before the other props resolve: with one unresolved,
+            // the engine plans an update, which would create the object in the
+            // new parent and leave the old one behind.
+            if (
+              news.objectType !== olds.objectType ||
+              news.objectId !== olds.objectId ||
+              news.subtype !== olds.subtype ||
+              // Setting the variant Braintrust defaults to is not a change.
+              (news.variant ?? (news.subtype || news.objectType)) !==
+                (olds.variant ?? (olds.subtype || olds.objectType))
+            ) {
+              return { action: "replace" } as const;
+            }
           }
         }),
         lookup: Effect.fn(function* ({ name, ...table }) {

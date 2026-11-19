@@ -166,23 +166,27 @@ export const McpServerProvider = () =>
       return {
         stables: ["mcpServerId", "projectId"],
         diff: Effect.fn(function* ({ news, olds, output }) {
-          // An id that resolves only at apply may name a new parent or the
-          // same one, and apply doesn't diff again, so the move is planned as
-          // a replace now.
-          if ("projectId" in news && !isResolved(news.projectId)) {
-            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
-          }
-          // A URL that resolves only at apply may carry a new origin, which
-          // Braintrust can't change. A replacement under the same name would
-          // find the old server again and PATCH its origin, so it goes first.
-          if ("url" in news && !isResolved(news.url)) {
-            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
-          }
-          if (!isResolved(news)) return undefined;
-          if (news.projectId !== olds.projectId) return { action: "replace" } as const;
-          // An adoption's `olds` are the new props; `output` is what it found.
-          if (originOf(plain(news.url)) !== originOf(plain(output?.url ?? olds.url))) {
-            return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+          if ("projectId" in news && "url" in news) {
+            // An id that resolves only at apply may name a new parent or the
+            // same one, and apply doesn't diff again, so the move is planned
+            // as a replace now.
+            if (!isResolved(news.projectId)) {
+              return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+            }
+            // Compared before the other props resolve: with one unresolved,
+            // the engine plans an update, which would create the object in the
+            // new parent and leave the old one behind.
+            if (news.projectId !== olds.projectId) return { action: "replace" } as const;
+            // A URL that resolves only at apply may carry a new origin, which
+            // Braintrust can't change. A replacement under the same name would
+            // find the old server again and PATCH its origin, so it goes first.
+            if (!isResolved(news.url)) {
+              return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+            }
+            // An adoption's `olds` are the new props; `output` is what it found.
+            if (originOf(plain(news.url)) !== originOf(plain(output?.url ?? olds.url))) {
+              return { action: "replace", deleteFirst: sameName(news.name, olds.name) } as const;
+            }
           }
         }),
         lookup: Effect.fn(function* ({ projectId, name }) {
