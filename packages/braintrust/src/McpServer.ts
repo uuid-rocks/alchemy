@@ -7,7 +7,13 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, sameName, unlessDeleted } from "./internal/Ownership.ts";
+import {
+  braintrustName,
+  confirmDeleted,
+  isGeneratedName,
+  sameName,
+  unlessDeleted,
+} from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface McpServerProps {
@@ -249,7 +255,11 @@ export const McpServerProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteMcpServer({ mcp_server_id: output.mcpServerId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted("MCP server", output.mcpServerId, getById(output.mcpServerId)),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           const servers = yield* Stream.runCollect(braintrust.listMcpServers.items({}));

@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, sameName } from "./internal/Ownership.ts";
+import { braintrustName, confirmDeleted, isGeneratedName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface ProjectScoreProps {
@@ -255,7 +255,15 @@ export const ProjectScoreProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteProjectScore({ project_score_id: output.projectScoreId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted(
+                  "project score",
+                  output.projectScoreId,
+                  getById(output.projectScoreId),
+                ),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           const scores = yield* Stream.runCollect(braintrust.listProjectScores.items({}));

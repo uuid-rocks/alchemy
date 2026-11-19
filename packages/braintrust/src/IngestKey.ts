@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, sameName } from "./internal/Ownership.ts";
+import { braintrustName, confirmDeleted, isGeneratedName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface IngestKeyProps {
@@ -196,7 +196,15 @@ export const IngestKeyProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteIngestKey({ id: output.ingestKeyId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted(
+                  "ingest key",
+                  output.ingestKeyId,
+                  findById(output.projectId, output.ingestKeyId),
+                ),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           // Keys are listed per project; only Alchemy-owned projects are walked.

@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, sameName } from "./internal/Ownership.ts";
+import { braintrustName, confirmDeleted, isGeneratedName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface PromptProps {
@@ -442,7 +442,11 @@ export const PromptProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deletePrompt({ prompt_id: output.promptId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted("prompt", output.promptId, getById(output.promptId)),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           const prompts = yield* Stream.runCollect(braintrust.listPrompts.items({}));

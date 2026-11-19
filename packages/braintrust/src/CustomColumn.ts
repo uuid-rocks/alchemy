@@ -4,7 +4,7 @@ import { isResolved } from "alchemy/Diff";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import { braintrustName, sameName } from "./internal/Ownership.ts";
+import { braintrustName, confirmDeleted, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface CustomColumnProps {
@@ -298,7 +298,15 @@ export const CustomColumnProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteColumn({ column_id: output.customColumnId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted(
+                  "custom column",
+                  output.customColumnId,
+                  findById(output, output.customColumnId),
+                ),
+              ),
+            );
         }),
         // Columns can only be listed one table at a time, by a scope that
         // includes the subtype and variant, so there is no way to enumerate

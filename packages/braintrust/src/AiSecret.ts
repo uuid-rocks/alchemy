@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName } from "./internal/Ownership.ts";
+import { braintrustName, confirmDeleted, isGeneratedName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface AiSecretProps {
@@ -226,7 +226,11 @@ export const AiSecretProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteAiSecret({ ai_secret_id: output.aiSecretId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted("AI secret", output.aiSecretId, getById(output.aiSecretId)),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           const secrets = yield* Stream.runCollect(braintrust.listAiSecrets.items({}));

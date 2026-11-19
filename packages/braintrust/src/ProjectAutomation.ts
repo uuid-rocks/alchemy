@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, sameName } from "./internal/Ownership.ts";
+import { braintrustName, confirmDeleted, isGeneratedName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface ProjectAutomationProps {
@@ -233,7 +233,15 @@ export const ProjectAutomationProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteProjectAutomation({ project_automation_id: output.projectAutomationId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted(
+                  "project automation",
+                  output.projectAutomationId,
+                  getById(output.projectAutomationId),
+                ),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           const automations = yield* Stream.runCollect(braintrust.listProjectAutomations.items({}));

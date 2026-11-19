@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { isGeneratedName, sameName } from "./internal/Ownership.ts";
+import { confirmDeleted, isGeneratedName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 /** The kind of object an environment variable is scoped to. */
@@ -297,7 +297,11 @@ export const EnvVarProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteEnvVar({ env_var_id: output.envVarId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted("environment variable", output.envVarId, getById(output.envVarId)),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           // Names are user-chosen, so only variables inside Alchemy-owned

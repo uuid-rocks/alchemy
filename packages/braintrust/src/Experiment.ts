@@ -6,7 +6,13 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, sameName, unlessDeleted } from "./internal/Ownership.ts";
+import {
+  braintrustName,
+  confirmDeleted,
+  isGeneratedName,
+  sameName,
+  unlessDeleted,
+} from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface ExperimentProps {
@@ -423,7 +429,11 @@ export const ExperimentProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteExperiment({ experiment_id: output.experimentId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted("experiment", output.experimentId, getById(output.experimentId)),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           const experiments = yield* Stream.runCollect(braintrust.listExperiments.items({}));

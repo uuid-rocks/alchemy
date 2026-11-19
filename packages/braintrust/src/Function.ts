@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, sameName } from "./internal/Ownership.ts";
+import { braintrustName, confirmDeleted, isGeneratedName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 type CodeData = Extract<braintrust.FunctionData, { type: "code" }>["data"];
@@ -380,7 +380,11 @@ export const FunctionProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteFunction({ function_id: output.functionId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted("function", output.functionId, getById(output.functionId)),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           const fns = yield* Stream.runCollect(braintrust.listFunctions.items({}));

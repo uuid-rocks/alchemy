@@ -6,7 +6,13 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, sameName, unlessDeleted } from "./internal/Ownership.ts";
+import {
+  braintrustName,
+  confirmDeleted,
+  isGeneratedName,
+  sameName,
+  unlessDeleted,
+} from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface ViewProps {
@@ -278,7 +284,11 @@ export const ViewProvider = () =>
               object_type: output.objectType,
               object_id: output.objectId,
             })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted("view", output.viewId, getById(output, output.viewId)),
+              ),
+            );
         }),
         // Views can only be listed per object, so list those saved on
         // projects Alchemy generated.

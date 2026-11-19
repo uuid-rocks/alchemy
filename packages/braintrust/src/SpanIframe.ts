@@ -6,7 +6,13 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, sameName, unlessDeleted } from "./internal/Ownership.ts";
+import {
+  braintrustName,
+  confirmDeleted,
+  isGeneratedName,
+  sameName,
+  unlessDeleted,
+} from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface SpanIframeProps {
@@ -217,7 +223,11 @@ export const SpanIframeProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteSpanIframe({ span_iframe_id: output.spanIframeId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted("span iframe", output.spanIframeId, getById(output.spanIframeId)),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           const iframes = yield* Stream.runCollect(braintrust.listSpanIframes.items({}));

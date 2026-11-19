@@ -6,33 +6,42 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { isGeneratedName } from "./internal/Ownership.ts";
+import { confirmDeleted, isGeneratedName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface AclProps {
   /**
    * Type of the object the grant applies to: `organization`, `project`,
    * `experiment`, `dataset`, `prompt`, `group`, `role`, `project_group`,
-   * `project_group_projects`, and so on.
+   * `project_group_projects`, and so on. Changing it replaces the ACL.
    */
   objectType: braintrust.AclObjectType;
   /**
    * Id of the object the grant applies to, e.g. `project.projectId`. For
-   * `organization`, the organization id (`project.orgId`).
+   * `organization`, the organization id (`project.orgId`). Changing it replaces the ACL.
    */
   objectId: string;
-  /** Id of the user or service account granted access. Set this or `groupId`. */
+  /**
+   * Id of the user or service account granted access. Set this or
+   * `groupId`. Changing it replaces the ACL.
+   */
   userId?: string;
-  /** Id of the group granted access, e.g. `group.groupId`. Set this or `userId`. */
+  /**
+   * Id of the group granted access, e.g. `group.groupId`. Set this or
+   * `userId`. Changing it replaces the ACL.
+   */
   groupId?: string;
-  /** Permission granted. Set this or `roleId`. */
+  /** Permission granted. Set this or `roleId`. Changing it replaces the ACL. */
   permission?: braintrust.Permission;
-  /** Id of the role granted, e.g. `role.roleId`. Set this or `permission`. */
+  /**
+   * Id of the role granted, e.g. `role.roleId`. Set this or `permission`.
+   * Changing it replaces the ACL.
+   */
   roleId?: string;
   /**
    * Limit a direct `permission` to objects of this type under the object,
    * e.g. `dataset` to grant on a project's datasets only. Can't be used with
-   * `roleId`.
+   * `roleId`. Changing it replaces the ACL.
    */
   restrictObjectType?: braintrust.AclObjectType;
 }
@@ -237,7 +246,11 @@ export const AclProvider = () =>
           // grant then can no longer be read or revoked.
           yield* braintrust
             .deleteAcl({ acl_id: output.aclId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted("acl", output.aclId, getById(output.aclId)),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           // ACLs have no name. Report the grants to groups Alchemy named, so

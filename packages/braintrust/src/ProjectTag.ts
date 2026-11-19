@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, sameName } from "./internal/Ownership.ts";
+import { braintrustName, confirmDeleted, isGeneratedName, sameName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface ProjectTagProps {
@@ -205,7 +205,11 @@ export const ProjectTagProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteProjectTag({ project_tag_id: output.projectTagId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted("project tag", output.projectTagId, getById(output.projectTagId)),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           const tags = yield* Stream.runCollect(braintrust.listProjectTags.items({}));

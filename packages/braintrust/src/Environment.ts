@@ -4,7 +4,12 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { braintrustName, isGeneratedName, unlessDeleted } from "./internal/Ownership.ts";
+import {
+  braintrustName,
+  confirmDeleted,
+  isGeneratedName,
+  unlessDeleted,
+} from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface EnvironmentProps {
@@ -190,7 +195,11 @@ export const EnvironmentProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteEnvironment({ environment_id: output.environmentId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted("environment", output.environmentId, getById(output.environmentId)),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           const environments = yield* listLive;

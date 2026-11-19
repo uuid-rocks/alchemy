@@ -5,7 +5,12 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName, unlessDeleted } from "./internal/Ownership.ts";
+import {
+  braintrustName,
+  confirmDeleted,
+  isGeneratedName,
+  unlessDeleted,
+} from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface ProjectGroupProps {
@@ -182,7 +187,15 @@ export const ProjectGroupProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteProjectGroup({ project_group_id: output.projectGroupId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted(
+                  "project group",
+                  output.projectGroupId,
+                  getById(output.projectGroupId),
+                ),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           const groups = yield* Stream.runCollect(braintrust.listProjectGroups.items({}));

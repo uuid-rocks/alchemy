@@ -7,15 +7,18 @@ import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { braintrustName, isGeneratedName } from "./internal/Ownership.ts";
+import { braintrustName, confirmDeleted, isGeneratedName } from "./internal/Ownership.ts";
 import type { Providers } from "./Providers.ts";
 
 export interface ServiceTokenProps {
-  /** Id of the service account the token acts as, e.g. `serviceAccount.serviceAccountId`. */
+  /**
+   * Id of the service account the token acts as, e.g.
+   * `serviceAccount.serviceAccountId`. Changing it replaces the token with a new key.
+   */
   serviceAccountId: string;
   /**
    * Token name. Names don't have to be unique. If omitted, a name is
-   * generated from the stack, stage and logical ID.
+   * generated from the stack, stage and logical ID. Changing it replaces the token with a new key.
    */
   name?: string;
   /**
@@ -23,7 +26,8 @@ export interface ServiceTokenProps {
    * token that would outlive the token creating it, so when omitted the
    * token never expires if the deployer's token doesn't, and otherwise
    * expires a minute before it. A deploy in the last tenth of the token's
-   * lifetime, or after it expired, replaces it with a new key.
+   * lifetime, or after it expired, replaces it with a new key, and so does
+   * changing it.
    */
   expiresInSeconds?: number;
 }
@@ -188,7 +192,15 @@ export const ServiceTokenProvider = () =>
         delete: Effect.fn(function* ({ output }) {
           yield* braintrust
             .deleteServiceToken({ service_token_id: output.serviceTokenId })
-            .pipe(Effect.catchTag("NotFoundOrForbidden", () => Effect.void));
+            .pipe(
+              Effect.catchTag("NotFoundOrForbidden", () =>
+                confirmDeleted(
+                  "service token",
+                  output.serviceTokenId,
+                  getById(output.serviceTokenId),
+                ),
+              ),
+            );
         }),
         list: Effect.fn(function* () {
           // Only generated names: the token the deployer signs in with is
