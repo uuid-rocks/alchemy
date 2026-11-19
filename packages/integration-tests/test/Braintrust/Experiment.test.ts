@@ -240,19 +240,19 @@ test.provider(
       yield* stack.destroy();
 
       // Both projects and the dataset stay deployed across the replacements.
-      // Project C, and the Label project whose id becomes the description,
+      // Project C, and the label project whose id becomes the description,
       // are created by the deploy that uses them, so their ids are unknown
       // at plan time.
-      const program = (target: "A" | "B" | "C", linked: boolean, labelled = false) =>
+      const program = (target: "A" | "B" | "C", linked: boolean, label?: string) =>
         Effect.gen(function* () {
           const a = yield* Braintrust.Project("A", {});
           const b = yield* Braintrust.Project("B", {});
           const c = target === "C" ? yield* Braintrust.Project("C", {}) : undefined;
-          const label = labelled ? yield* Braintrust.Project("Label", {}) : undefined;
+          const labelProject = label ? yield* Braintrust.Project(label, {}) : undefined;
           const dataset = yield* Braintrust.Dataset("Dataset", { projectId: a.projectId });
           return yield* Braintrust.Experiment("Moving", {
             projectId: target === "A" ? a.projectId : target === "B" ? b.projectId : c!.projectId,
-            description: label?.projectId,
+            description: labelProject?.projectId,
             datasetId: linked ? dataset.datasetId : undefined,
           });
         });
@@ -261,15 +261,20 @@ test.provider(
       expect(linked.datasetId).toBeTruthy();
 
       // Apply doesn't diff again, so the plan must already replace.
-      expect((yield* stack.plan(program("A", false, true))).resources.Moving.action).toBe(
+      expect((yield* stack.plan(program("A", false, "Label"))).resources.Moving.action).toBe(
         "replace",
       );
-      const unlinked = yield* stack.deploy(program("A", false, true));
+      const unlinked = yield* stack.deploy(program("A", false, "Label"));
       expect(unlinked.experimentId).not.toBe(linked.experimentId);
       expect(unlinked.datasetId).toBeUndefined();
       yield* expectExperimentGone(linked.experimentId);
 
-      const moved = yield* stack.deploy(program("B", false));
+      // A known project change with an unrelated prop unresolved still
+      // replaces, so the experiment in A is deleted.
+      expect((yield* stack.plan(program("B", false, "Label2"))).resources.Moving.action).toBe(
+        "replace",
+      );
+      const moved = yield* stack.deploy(program("B", false, "Label2"));
       expect(moved.experimentId).not.toBe(unlinked.experimentId);
       yield* eventually(getExperiment(moved.experimentId), (observed) => {
         expect(observed.project_id).toBe(moved.projectId);
