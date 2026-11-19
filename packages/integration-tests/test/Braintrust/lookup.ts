@@ -65,9 +65,11 @@ const passes = <A>(check: (value: A) => void, value: A) => {
 
 /**
  * Budget for a test that makes several group, role, ACL or member writes.
- * Braintrust holds every such write while it creates a service token, about
- * 10 s each (measured 2026-11-18: a group PATCH sent during a token create
- * took 9.7 s and returned with it). The suite creates a dozen tokens at once
- * (`Bindings.test.ts`, `ServiceToken.test.ts`), so one write can wait a minute.
+ * Braintrust holds every such write org-wide while it mints a service token
+ * and after it removes a service account (measured 2026-11-19: a group PATCH
+ * waited 16.7 s on a token create and 28.8 s after an account removal that
+ * itself returned in 0.5 s). Most live files mint tokens or remove accounts,
+ * and other runs can share the org, so one write can wait minutes: a group
+ * test took 235 s in one local run.
  */
 export const permissionWritesTimeout = 300_000;
